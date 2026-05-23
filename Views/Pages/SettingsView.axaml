@@ -239,7 +239,7 @@
                         <StackPanel Orientation="Horizontal" Spacing="10" Margin="0,8,0,0">
                             <Border Background="{DynamicResource Surface2Brush}"
                                     CornerRadius="999" Padding="10,4">
-                                <TextBlock Text="v4.3.0  ·  GPL-3.0" FontSize="11"
+                                <TextBlock Text="v4.6.0  ·  GPL-3.0" FontSize="11"
                                            Foreground="{DynamicResource TextSecondary}" />
                             </Border>
                             <Border Background="{DynamicResource Surface2Brush}"

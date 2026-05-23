@@ -14,6 +14,7 @@ public partial class UnlocksViewModel : PageViewModelBase
 {
     private readonly CheatService _cheats;
     private readonly GameProcessService _game;
+    private readonly LogService _log;
 
     public override string PageTitle => "Unlocks";
     public override string PageSubtitle => "All cheats in one place.";
@@ -21,9 +22,7 @@ public partial class UnlocksViewModel : PageViewModelBase
 
     [ObservableProperty] private string? _statusMessage;
     [ObservableProperty] private bool _statusIsError;
-    [ObservableProperty] private string? _diagnosticsMessage;
-
-    // Controls whether toggle switches are enabled (disabled when game is not running)
+    [ObservableProperty] private string? _logText;
     [ObservableProperty] private bool _canToggle;
 
     // --- Profile values ---
@@ -75,13 +74,16 @@ public partial class UnlocksViewModel : PageViewModelBase
 
     public UnlocksViewModel()
         : this(App.Services.GetRequiredService<CheatService>(),
-               App.Services.GetRequiredService<GameProcessService>()) { }
+               App.Services.GetRequiredService<GameProcessService>(),
+               App.Services.GetRequiredService<LogService>()) { }
 
-    public UnlocksViewModel(CheatService cheats, GameProcessService game)
+    public UnlocksViewModel(CheatService cheats, GameProcessService game, LogService log)
     {
         _cheats = cheats;
         _game = game;
+        _log = log;
         _game.StatusChanged += OnGameStatusChanged;
+        _log.Changed += OnLogChanged;
         CanToggle = _game.IsAttached;
     }
 
@@ -92,6 +94,14 @@ public partial class UnlocksViewModel : PageViewModelBase
             CanToggle = _game.IsAttached;
             if (!CanToggle)
                 StatusMessage = "FH6 is not running — start the game first.";
+        });
+    }
+
+    private void OnLogChanged()
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            LogText = _log.GetTail(60);
         });
     }
 
@@ -108,7 +118,6 @@ public partial class UnlocksViewModel : PageViewModelBase
     private void Toggle(RuntimeProfileFeature f, bool target, int value, string nameLabel)
     {
         var ok = _cheats.Apply(f, value, target);
-        DiagnosticsMessage = _cheats.Diagnostics;
         SetStatus(ok, ok
             ? (target ? $"{nameLabel} ON." : $"{nameLabel} OFF.")
             : _cheats.LastError);
@@ -117,7 +126,6 @@ public partial class UnlocksViewModel : PageViewModelBase
     private void ApplyValue(RuntimeProfileFeature f, int value, string nameLabel)
     {
         var ok = _cheats.UpdateValue(f, value);
-        DiagnosticsMessage = _cheats.Diagnostics;
         SetStatus(ok, ok ? $"{nameLabel} updated." : _cheats.LastError);
     }
 
@@ -129,9 +137,10 @@ public partial class UnlocksViewModel : PageViewModelBase
         {
             await System.Threading.Tasks.Task.Delay(5000);
             StatusMessage = null;
-            DiagnosticsMessage = null;
         });
     }
+
+    [RelayCommand] private void ClearLog() => _log.Clear();
 
     // ===== Quick Start =====
     [RelayCommand]
@@ -176,7 +185,6 @@ public partial class UnlocksViewModel : PageViewModelBase
         IsSkillPointsOn = _cheats.IsActive(RuntimeProfileFeature.SkillPoints);
 
         var allOk = ok1 && ok2 && ok3 && ok4;
-        DiagnosticsMessage = _cheats.Diagnostics;
         SetStatus(allOk, allOk
             ? "Max All applied — all profile values maxed."
             : _cheats.LastError);

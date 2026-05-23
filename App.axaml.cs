@@ -69,6 +69,7 @@ public partial class App : Application
     {
         var services = new ServiceCollection();
 
+        services.AddSingleton<LogService>();
         services.AddSingleton<GameProcessService>();
         services.AddSingleton<CheatService>();
         services.AddSingleton<UpdateCheckService>();

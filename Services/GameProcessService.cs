@@ -2,9 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Threading;
-using System.Threading.Tasks;
 
 namespace FH6Mod.Services;
 
@@ -12,7 +10,6 @@ public sealed class GameProcessService : IDisposable
 {
     public const string ProcessName = "ForzaHorizon6";
 
-    // Known trainer process names to detect conflicts
     private static readonly HashSet<string> KnownTrainers = new(StringComparer.OrdinalIgnoreCase)
     {
         "Forza-Mods-AIO", "ForzaModsAIO",
@@ -21,6 +18,7 @@ public sealed class GameProcessService : IDisposable
     };
 
     private readonly Timer _poll;
+    private readonly LogService _log;
     private Process? _process;
 
     public event Action? StatusChanged;
@@ -44,8 +42,9 @@ public sealed class GameProcessService : IDisposable
         }
     }
 
-    public GameProcessService()
+    public GameProcessService(LogService log)
     {
+        _log = log;
         _poll = new Timer(_ => Poll(), null, TimeSpan.Zero, TimeSpan.FromSeconds(2));
     }
 
@@ -60,9 +59,22 @@ public sealed class GameProcessService : IDisposable
             _process = Process.GetProcessesByName(ProcessName).FirstOrDefault();
             var nowAttached = IsAttached;
             if (was != nowAttached)
+            {
+                if (nowAttached)
+                {
+                    _log.Info($"GAME DETECTED: PID {_process!.Id}, base=0x{BaseAddress.ToInt64():X}, module={ModuleSize} bytes");
+                    var conflicts = DetectConflictingTrainers();
+                    if (conflicts.Count > 0)
+                        _log.Error($"Conflicting trainers detected: {string.Join(", ", conflicts)}");
+                }
+                else
+                {
+                    _log.Info("GAME LOST: FH6 process no longer running");
+                }
                 StatusChanged?.Invoke();
+            }
         }
-        catch { }
+        catch (Exception ex) { _log.Error($"GameProcess poll error: {ex.Message}"); }
     }
 
     public List<string> DetectConflictingTrainers()

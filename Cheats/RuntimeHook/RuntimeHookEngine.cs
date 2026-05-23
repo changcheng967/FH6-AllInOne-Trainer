@@ -38,8 +38,14 @@ public sealed class RuntimeHookEngine : IDisposable
         public byte[] Replacement;
     }
 
+    // Value Encryption bypass — writes RET at the encryption function so values stay plaintext
+    private ulong _valueEncryptionAddr;
+    private byte[] _valueEncryptionOriginal = [];
+
+    private Action<string>? _onLog;
     public bool IsAttached => _handle != IntPtr.Zero && _process is { HasExited: false };
     public List<string> Log { get; } = new();
+    public void SetLogCallback(Action<string> onLog) => _onLog = onLog;
 
     /// <summary>
     /// Test all known signatures against the current FH6 binary without installing hooks.
@@ -136,6 +142,7 @@ public sealed class RuntimeHookEngine : IDisposable
     private void L(string msg)
     {
         lock (_lock) Log.Add(msg);
+        _onLog?.Invoke(msg);
     }
 
     // ===== Attach =====
@@ -195,6 +202,7 @@ public sealed class RuntimeHookEngine : IDisposable
     {
         StopCrcTimer();
         RestoreIntegrityBypasses();
+        RestoreValueEncryptionBypass();
         RestoreRuntimeProfileHooks();
         RestoreCrcPointer();
         FreeCrcRetStub();
@@ -215,6 +223,15 @@ public sealed class RuntimeHookEngine : IDisposable
         var t = _crcTimer;
         _crcTimer = null;
         try { t?.Dispose(); } catch { }
+    }
+
+    private void RestoreValueEncryptionBypass()
+    {
+        if (_valueEncryptionAddr == 0 || _valueEncryptionOriginal.Length == 0) return;
+        try { WriteProtectedBytes(_valueEncryptionAddr, _valueEncryptionOriginal); }
+        catch (Exception ex) { L($"Value Encryption restore failed: {ex.Message}"); }
+        _valueEncryptionAddr = 0;
+        _valueEncryptionOriginal = [];
     }
 
     private void RestoreRuntimeProfileHooks()
@@ -352,6 +369,7 @@ public sealed class RuntimeHookEngine : IDisposable
 
         EnsureCrcBypass();
 
+        L($"{desc.Name}: scanning sig '{desc.Signature}'...");
         var moduleBytes = ReadBytes(_mainBase, _mainSize);
         if (moduleBytes.Length == 0)
             throw new InvalidOperationException($"Could not read main module for {desc.Name} scan.");
@@ -360,7 +378,7 @@ public sealed class RuntimeHookEngine : IDisposable
 
         var det = CreateRuntimeDetour(desc, hookAddr);
         _hooks[desc.Key] = det;
-        L($"{desc.Name} detour installed. target=0x{hookAddr:X}, detour=0x{det.DetourAddress:X}");
+        L($"{desc.Name} detour installed. target=0x{hookAddr:X}, cave=0x{det.DetourAddress:X}, size={det.Size}B");
         return det;
     }
 
@@ -402,17 +420,22 @@ public sealed class RuntimeHookEngine : IDisposable
 
             // Best case: exact match
             if (BytesStartWith(original, desc.ExpectedOriginal))
+            {
+                L($"{desc.Name}: match at 0x{hookAddr:X} — bytes match expected");
                 return hookAddr;
+            }
 
             // Track already-patched targets
             if (original.Length > 0 && original[0] == 0xE9)
             {
+                L($"{desc.Name}: match at 0x{hookAddr:X} — already patched (JMP), skipping");
                 anyTargetPatched = true;
                 continue;
             }
 
             // Accept first non-patched candidate for dynamic patching
             dynamicCandidate ??= hookAddr;
+            L($"{desc.Name}: match at 0x{hookAddr:X} — byte mismatch, dynamic candidate");
 
             if (string.IsNullOrEmpty(firstMismatchSample))
                 firstMismatchSample = $"expected {FormatBytes(desc.ExpectedOriginal)}, got {FormatBytes(original)}";
@@ -435,9 +458,26 @@ public sealed class RuntimeHookEngine : IDisposable
     {
         var original = ReadBytes(hookAddr, desc.HookSize);
 
-        // Dynamically patch the Asm template with actual bytes read from the hook target.
-        // This makes cheats resilient to game updates that change register/offset encodings.
+        // NOP-sled mode: no code cave, just overwrite target bytes directly.
+        // Asm contains the replacement bytes (all NOPs), OriginalRegions is empty.
+        if (desc.OriginalRegions.Length == 0)
+        {
+            var nopPatch = desc.Asm;
+            WriteProtectedBytes(hookAddr, nopPatch);
+            return new RuntimeDetour
+            {
+                Name = desc.Name,
+                Address = hookAddr,
+                DetourAddress = hookAddr, // no cave — point at hook site
+                Size = nopPatch.Length,
+                Original = original,
+                Patch = nopPatch,
+            };
+        }
+
+        // Code-cave mode (original approach for complex hooks)
         var patchedAsm = (byte[])desc.Asm.Clone();
+
         foreach (var (asmOffset, origOffset, length) in desc.OriginalRegions)
         {
             if (asmOffset + length <= patchedAsm.Length && origOffset + length <= original.Length)
@@ -491,12 +531,14 @@ public sealed class RuntimeHookEngine : IDisposable
         if (crcOff < 0) throw new InvalidOperationException("CRC bypass signature not found (FH6 likely updated).");
 
         var sigAddr = _mainBase + (ulong)crcOff;
+        L($"CRC: sig found at 0x{sigAddr:X}");
         var leaStart = sigAddr + 3;
         var leaDisp = ReadInt32(leaStart + 3);
         var tableBase = leaStart + 7 + (ulong)leaDisp;
         var fnPtrAddr = tableBase + 48;
         var origFnPtr = ReadUInt64(fnPtrAddr);
         if (origFnPtr == 0) throw new InvalidOperationException("CRC function pointer is zero.");
+        L($"CRC: table=0x{tableBase:X}, fnPtr=0x{fnPtrAddr:X}, origFunc=0x{origFnPtr:X}");
 
         // Allocate a small cave near the CRC table for our RET stub.
         // This is much more stable than using a random C3 in the game binary.
@@ -510,8 +552,33 @@ public sealed class RuntimeHookEngine : IDisposable
         _crcRetStubAddress = retStubAddr;
         _crcBypassActive = true;
         ApplyIntegrityBypasses(bytes);
+        ApplyValueEncryptionBypass(bytes);
         StartCrcTimer();
         L($"CRC bypass armed. ptr=0x{fnPtrAddr:X}, ret-stub=0x{retStubAddr:X} (dedicated cave)");
+    }
+
+    /// <summary>
+    /// Patches the value encryption function to immediately return (RET).
+    /// This keeps credits/wheelspins/skillpoints in plaintext so our hooks can modify them.
+    /// Based on Omkmakwana's proven approach: write 0xC3 at the function prologue.
+    /// </summary>
+    private void ApplyValueEncryptionBypass(byte[] moduleBytes)
+    {
+        if (_valueEncryptionAddr != 0) return;
+        var sig = "48 89 5C 24 ?? 48 89 6C 24 ?? 48 89 74 24 ?? 57 48 83 EC ?? 8B EA 48 8B F9 8B F1 48 8B 0D";
+        var pattern = Pattern.Parse(sig);
+        foreach (var off in Pattern.FindAll(moduleBytes, pattern, 8))
+        {
+            var addr = _mainBase + (ulong)off;
+            var orig = ReadBytes(addr, 1);
+            if (orig.Length < 1) continue;
+            WriteProtectedBytes(addr, [0xC3]); // RET — function returns immediately
+            _valueEncryptionAddr = addr;
+            _valueEncryptionOriginal = orig;
+            L($"Value Encryption bypass: patched at 0x{addr:X} (wrote RET)");
+            return;
+        }
+        L("Value Encryption bypass: signature NOT FOUND (skipped)");
     }
 
     /// <summary>
@@ -663,6 +730,8 @@ public sealed class RuntimeHookEngine : IDisposable
                 try
                 {
                     WriteUInt64(_crcFunctionPointerAddress, _crcRetAddress);
+                    if (_valueEncryptionAddr != 0 && _valueEncryptionOriginal.Length > 0)
+                        WriteProtectedBytes(_valueEncryptionAddr, [0xC3]);
                     foreach (var ip in _integrityPatches)
                         WriteProtectedBytes(ip.Address, ip.Replacement);
                     foreach (var det in _hooks.Values)

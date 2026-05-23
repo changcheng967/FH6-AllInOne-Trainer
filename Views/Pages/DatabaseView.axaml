@@ -32,20 +32,6 @@
                            Foreground="{DynamicResource TextPrimary}" TextWrapping="Wrap" />
             </Border>
 
-            <!-- Engine log -->
-            <Border IsVisible="{Binding DiagnosticsMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
-                    Padding="10,6" CornerRadius="6" BorderThickness="1"
-                    Background="{DynamicResource Surface1Brush}"
-                    BorderBrush="{DynamicResource SurfaceBorderBrush}">
-                <StackPanel Spacing="4">
-                    <TextBlock Text="SQL LOG" FontSize="10" FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextDim}" />
-                    <TextBlock Text="{Binding DiagnosticsMessage}" FontSize="11"
-                               FontFamily="Consolas, Courier New, monospace"
-                               Foreground="{DynamicResource TextSecondary}" TextWrapping="Wrap" />
-                </StackPanel>
-            </Border>
-
             <!-- Section: Toggle locks -->
             <TextBlock Text="PERSISTENT LOCKS (re-applied every 10s)" FontSize="11" FontWeight="SemiBold"
                        Foreground="{DynamicResource TextDim}" Margin="0,6,0,0" />
