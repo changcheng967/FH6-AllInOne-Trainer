@@ -944,26 +944,59 @@ public sealed class RuntimeHookEngine : IDisposable
                 try
                 {
                     var p1Fails = 0;
+                    var p1ProcessDead = false;
                     foreach (var det in _hooks.Values)
                     {
                         try { WriteProtectedBytes(det.Address, det.Original); }
-                        catch (Exception ex) { p1Fails++; L($"CRC p1 restore {det.Name} failed: {ex.Message}"); }
+                        catch (Exception ex)
+                        {
+                            p1Fails++;
+                            L($"CRC p1 restore {det.Name} failed: {ex.Message}");
+                            if (IsProcessDead()) { p1ProcessDead = true; break; }
+                        }
                     }
-                    foreach (var ip in _integrityPatches)
+                    if (!p1ProcessDead)
                     {
-                        try { WriteProtectedBytes(ip.Address, ip.Original); }
-                        catch (Exception ex) { L($"CRC p1 restore bypass {ip.Name} failed: {ex.Message}"); }
+                        foreach (var ip in _integrityPatches)
+                        {
+                            try { WriteProtectedBytes(ip.Address, ip.Original); }
+                            catch (Exception ex)
+                            {
+                                L($"CRC p1 restore bypass {ip.Name} failed: {ex.Message}");
+                                if (IsProcessDead()) { p1ProcessDead = true; break; }
+                            }
+                        }
                     }
-                    try { WriteUInt64(_crcFunctionPointerAddress, _crcOriginalPointer); }
-                    catch (Exception ex) { L($"CRC p1 restore CRC pointer failed: {ex.Message}"); }
+                    if (!p1ProcessDead)
+                    {
+                        try { WriteUInt64(_crcFunctionPointerAddress, _crcOriginalPointer); }
+                        catch (Exception ex) { L($"CRC p1 restore CRC pointer failed: {ex.Message}"); }
+                    }
                     sw.Stop();
                     L($"CRC tick: p1 restore done in {sw.ElapsedMilliseconds}ms (suspended {threads.Count} threads, {hookCount} hooks, {patchCount} bypasses, {p1Fails} hook failures)");
+
+                    // Spike detection: if p1 took too long, abort the tick.
+                    // Originals are restored — this is the safest state. Don't re-apply patches.
+                    if (sw.ElapsedMilliseconds > 500)
+                    {
+                        L($"CRC tick: SPIKE detected ({sw.ElapsedMilliseconds}ms p1) — skipping re-apply to avoid detection");
+                        return;
+                    }
+
+                    // Process death: if the game died during p1, stop the timer.
+                    if (p1ProcessDead || _process?.HasExited != false)
+                    {
+                        L("CRC tick: game process died during p1 — disarming CRC timer");
+                        _crcBypassActive = false;
+                        return;
+                    }
                 }
                 finally { ResumeAllGameThreads(threads); }
             }
 
             // Clean window: let the game run integrity checks.
-            Thread.Sleep(500);
+            // 1500ms gives the game enough time to complete all 5 integrity checks.
+            Thread.Sleep(1500);
 
             // Retry any integrity bypasses that weren't found initially.
             if (_pendingBypasses.Count > 0)
@@ -978,24 +1011,38 @@ public sealed class RuntimeHookEngine : IDisposable
                 try
                 {
                     var p2Fails = 0;
-                    WriteUInt64(_crcFunctionPointerAddress, _crcRetAddress);
-                    if (_valueEncryptionAddr != 0 && _valueEncryptionOriginal.Length > 0)
+                    var p2ProcessDead = false;
+                    try { WriteUInt64(_crcFunctionPointerAddress, _crcRetAddress); }
+                    catch (Exception ex) { L($"CRC p2 CRC pointer failed: {ex.Message}"); p2ProcessDead = IsProcessDead(); }
+                    if (!p2ProcessDead && _valueEncryptionAddr != 0 && _valueEncryptionOriginal.Length > 0)
                     {
                         try { WriteProtectedBytes(_valueEncryptionAddr, [0xC3]); }
                         catch (Exception ex) { L($"CRC p2 value-encryption failed: {ex.Message}"); }
                     }
-                    foreach (var ip in _integrityPatches)
+                    if (!p2ProcessDead)
                     {
-                        try { WriteProtectedBytes(ip.Address, ip.Replacement); }
-                        catch (Exception ex) { L($"CRC p2 re-apply bypass {ip.Name} failed: {ex.Message}"); }
+                        foreach (var ip in _integrityPatches)
+                        {
+                            try { WriteProtectedBytes(ip.Address, ip.Replacement); }
+                            catch (Exception ex) { L($"CRC p2 re-apply bypass {ip.Name} failed: {ex.Message}"); if (IsProcessDead()) { p2ProcessDead = true; break; } }
+                        }
                     }
-                    foreach (var det in _hooks.Values)
+                    if (!p2ProcessDead)
                     {
-                        try { WriteProtectedBytes(det.Address, det.Patch); }
-                        catch (Exception ex) { p2Fails++; L($"CRC p2 re-apply {det.Name} failed: {ex.Message}"); }
+                        foreach (var det in _hooks.Values)
+                        {
+                            try { WriteProtectedBytes(det.Address, det.Patch); }
+                            catch (Exception ex) { p2Fails++; L($"CRC p2 re-apply {det.Name} failed: {ex.Message}"); if (IsProcessDead()) { p2ProcessDead = true; break; } }
+                        }
                     }
                     sw.Stop();
                     L($"CRC tick: p2 re-apply done in {sw.ElapsedMilliseconds}ms ({hookCount} hooks, {p2Fails} failures)");
+
+                    if (p2ProcessDead)
+                    {
+                        L("CRC tick: game process died during p2 — disarming CRC timer");
+                        _crcBypassActive = false;
+                    }
                 }
                 finally { ResumeAllGameThreads(threads); }
             }
@@ -1006,14 +1053,21 @@ public sealed class RuntimeHookEngine : IDisposable
         finally
         {
             Interlocked.Exchange(ref _crcTimerRunning, 0);
-            // Reschedule with random jitter: 5s base ± 1.5s
+            // Reschedule with random jitter: 3.5s base ± 1s
+            // Shorter cycle + longer clean window = patches visible ~43% of time (vs ~86% before)
             try
             {
-                var nextMs = 5000 + _jitter.Next(-1500, 1501);
+                var nextMs = 3500 + _jitter.Next(-1000, 1001);
                 _crcTimer?.Change(nextMs, Timeout.Infinite);
             }
             catch { /* timer disposed during detach */ }
         }
+    }
+
+    private bool IsProcessDead()
+    {
+        try { return _process?.HasExited != false; }
+        catch { return true; }
     }
 
     /// <summary>

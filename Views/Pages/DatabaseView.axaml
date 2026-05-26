@@ -114,9 +114,10 @@
                         Command="{Binding UnlockPresetsCommand}" />
             </Grid>
 
-            <!-- Full Autoshow (CarBuckets) -->
+            <!-- Full Autoshow (CarBuckets only — no view drop/create) -->
             <Grid ColumnDefinitions="180,*" ColumnSpacing="8" Height="28">
-                <TextBlock Grid.Column="0" Text="Full Autoshow (CarBuckets)" VerticalAlignment="Center" FontSize="13" />
+                <TextBlock Grid.Column="0" Text="Fill Car Buckets" VerticalAlignment="Center" FontSize="13"
+                           ToolTip.Tip="Adds all cars to CarBuckets so they appear in autoshow. Use Autoshow Unlock first." />
                 <Button Grid.Column="1" Classes="ghost" Content="Apply" Padding="10,4" FontSize="11"
                         HorizontalAlignment="Left" IsEnabled="{Binding CanToggle}"
                         Command="{Binding FullAutoshowCommand}" />

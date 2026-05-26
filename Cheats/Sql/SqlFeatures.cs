@@ -102,11 +102,9 @@ internal static class SqlFeatureCatalog
             ]),
 
         SqlFeature.FullAutoshow => new(
-            "Full Autoshow (CarBuckets + View)",
-            "Drops the Drivable_Data_Car view and recreates it to include ALL cars, then fills CarBuckets so every car appears in autoshow listings.",
+            "Full Autoshow (CarBuckets)",
+            "Fills CarBuckets so every car appears in autoshow listings. Use Autoshow Unlock first to make them all visible.",
             [
-                "DROP VIEW IF EXISTS Drivable_Data_Car;",
-                "CREATE VIEW Drivable_Data_Car AS SELECT * FROM Data_Car;",
                 "INSERT OR IGNORE INTO CarBuckets(CarId) SELECT Id FROM Data_Car WHERE Id NOT IN (SELECT CarId FROM CarBuckets);",
                 "UPDATE CarBuckets SET CarBucket=0, BucketHero=0 WHERE CarBucket IS NULL;",
             ]),
