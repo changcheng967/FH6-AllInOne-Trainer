@@ -808,6 +808,30 @@ public sealed class RuntimeHookEngine : IDisposable
              26, 6,
              [0x0F, 0x85],   // JNZ rel32
              [0x90, 0xE9]),  // NOP; JMP rel32 (displacement adjusted +1 at patch time)
+
+            // 8. PlayFabRunReinit: RunReinitializationTasks schedules game shutdown during
+            // PlayFab resume handling. RET at entry makes it a no-op, covering all 3 call sites.
+            ("PlayFabRunReinit",
+             "48 8B C4 48 81 EC D8 00 00 00 C6 40 98 00 4C 8D 84",
+             0, 1,
+             [0x48],       // MOV RAX,RSP (first byte of prologue)
+             [0xC3]),      // RET
+
+            // 9. PlayFabReboot1: NOP the vtable reboot call in normal completion path.
+            // After RunReinitTasks, a std::function reboot callback is invoked via CALL [RAX+10h].
+            ("PlayFabReboot1",
+             "48 85 C9 0F 84 0C 09 00 00 48 8B 01 FF 50 10",
+             12, 3,
+             [0xFF],       // CALL [RAX+0x10]
+             [0x90]),      // NOP
+
+            // 10. PlayFabReboot2: NOP the vtable reboot call in failure path.
+            // Same pattern but different JZ displacement.
+            ("PlayFabReboot2",
+             "48 85 C9 0F 84 E7 04 00 00 48 8B 01 FF 50 10",
+             12, 3,
+             [0xFF],       // CALL [RAX+0x10]
+             [0x90]),      // NOP
         };
 
         foreach (var (name, sig, patchOffset, patchLen, expected, replace) in bypasses)
@@ -1027,8 +1051,8 @@ public sealed class RuntimeHookEngine : IDisposable
             }
 
             // Clean window: let the game run integrity checks.
-            // 1500ms gives the game enough time to complete all 5 integrity checks.
-            Thread.Sleep(1500);
+            // 800ms is sufficient for checks while minimizing PlayFab state inconsistency.
+            Thread.Sleep(800);
 
             // Retry any integrity bypasses that weren't found initially.
             if (_pendingBypasses.Count > 0)
