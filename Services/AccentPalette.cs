@@ -20,6 +20,12 @@ public static class AccentPalette
         new("Lime",          "#84CC16", "#A5E031", "#6BA80E", "#2D4408"),
         new("Amber",         "#F59E0B", "#FBB72E", "#D17F03", "#4F3304"),
         new("Rose",          "#F43F5E", "#FB5F7A", "#D8224A", "#4E0F1C"),
+        new("Neon",          "#D946EF", "#E96BF5", "#B825D3", "#460D51"),
+        new("Pastel",        "#F472B6", "#F89BC8", "#E0509E", "#561D38"),
+        new("Forest",        "#059669", "#34D399", "#047857", "#023D1A"),
+        new("Ocean",         "#0EA5E9", "#38BDF8", "#0284C7", "#0C3348"),
+        new("Dark",          "#6B7280", "#9CA3AF", "#4B5563", "#1F2937"),
+        new("Classic",       "#F97316", "#FB923C", "#EA580C", "#5C2806"),
     ];
 
     public static Accent ByName(string? name)

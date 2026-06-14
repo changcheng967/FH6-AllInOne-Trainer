@@ -16,8 +16,8 @@ public partial class UnlocksViewModel : PageViewModelBase
     private readonly GameProcessService _game;
     private readonly LogService _log;
 
-    public override string PageTitle => "Unlocks";
-    public override string PageSubtitle => "All cheats in one place.";
+    public override string PageTitle => Localization["Unlocks.Title"];
+    public override string PageSubtitle => Localization["Unlocks.Subtitle"];
     public override MaterialIconKind PageIcon => MaterialIconKind.LockOpenVariantOutline;
 
     [ObservableProperty] private string? _statusMessage;
@@ -67,7 +67,7 @@ public partial class UnlocksViewModel : PageViewModelBase
         {
             CanToggle = _game.IsAttached;
             if (!CanToggle)
-                StatusMessage = "FH6 is not running — start the game first.";
+                StatusMessage = Localization["Status.NotRunning"];
         });
     }
 
@@ -131,8 +131,8 @@ public partial class UnlocksViewModel : PageViewModelBase
         var allOk = ok1 && ok2 && ok3 && ok4 && ok5;
         StatusIsError = !allOk;
         StatusMessage = allOk
-            ? "Quick Start done — 999M credits, all cars free & unlocked."
-            : "Partially applied. Check Database tab.";
+            ? Localization["Unlocks.QuickStartDone"]
+            : Localization["Unlocks.PartialApply"];
     }
 
     // ===== Max All =====
@@ -160,7 +160,7 @@ public partial class UnlocksViewModel : PageViewModelBase
 
         var allOk = ok1 && ok2 && ok3 && ok4;
         SetStatus(allOk, allOk
-            ? "Max All applied — all profile values maxed."
+            ? Localization["Unlocks.MaxAllDone"]
             : _cheats.LastError);
     }
 
@@ -190,49 +190,49 @@ public partial class UnlocksViewModel : PageViewModelBase
     [RelayCommand] private void ToggleSuperWheelspins()
     {
         var on = !_cheats.IsActive(RuntimeProfileFeature.SuperWheelspins);
-        Toggle(RuntimeProfileFeature.SuperWheelspins, on, Parse(SuperWheelspinsAmountText, 100), "Super Wheelspins");
+        Toggle(RuntimeProfileFeature.SuperWheelspins, on, Parse(SuperWheelspinsAmountText, 100), "SuperWheelspins");
         IsSuperWheelspinsOn = _cheats.IsActive(RuntimeProfileFeature.SuperWheelspins);
     }
     [RelayCommand] private void ApplySuperWheelspins()
-        => ApplyValue(RuntimeProfileFeature.SuperWheelspins, Parse(SuperWheelspinsAmountText, 100), "Super Wheelspins");
+        => ApplyValue(RuntimeProfileFeature.SuperWheelspins, Parse(SuperWheelspinsAmountText, 100), "SuperWheelspins");
     [RelayCommand] private void SetSuperWheelspins(string? a) { if (a is not null) { SuperWheelspinsAmountText = a; if (IsSuperWheelspinsOn) ApplySuperWheelspins(); } }
 
     // ===== Skill Points =====
     [RelayCommand] private void ToggleSkillPoints()
     {
         var on = !_cheats.IsActive(RuntimeProfileFeature.SkillPoints);
-        Toggle(RuntimeProfileFeature.SkillPoints, on, Parse(SkillPointsAmountText, 10_000), "Skill Points");
+        Toggle(RuntimeProfileFeature.SkillPoints, on, Parse(SkillPointsAmountText, 10_000), "SkillPoints");
         IsSkillPointsOn = _cheats.IsActive(RuntimeProfileFeature.SkillPoints);
     }
     [RelayCommand] private void ApplySkillPoints()
-        => ApplyValue(RuntimeProfileFeature.SkillPoints, Parse(SkillPointsAmountText, 10_000), "Skill Points");
+        => ApplyValue(RuntimeProfileFeature.SkillPoints, Parse(SkillPointsAmountText, 10_000), "SkillPoints");
     [RelayCommand] private void SetSkillPoints(string? a) { if (a is not null) { SkillPointsAmountText = a; if (IsSkillPointsOn) ApplySkillPoints(); } }
 
     // ===== Sell Payout =====
     [RelayCommand] private void ToggleSellPayout()
     {
         var on = !_cheats.IsActive(RuntimeProfileFeature.SellFactor);
-        Toggle(RuntimeProfileFeature.SellFactor, on, Parse(SellPayoutText, 5), "Sell Payout x");
+        Toggle(RuntimeProfileFeature.SellFactor, on, Parse(SellPayoutText, 5), "Unlocks.SellPayoutLabel");
         IsSellPayoutOn = _cheats.IsActive(RuntimeProfileFeature.SellFactor);
     }
     [RelayCommand] private void ApplySellPayout()
-        => ApplyValue(RuntimeProfileFeature.SellFactor, Parse(SellPayoutText, 5), "Sell Payout x");
+        => ApplyValue(RuntimeProfileFeature.SellFactor, Parse(SellPayoutText, 5), "Unlocks.SellPayoutLabel");
 
     // ===== Drift Score Multiplier =====
     [RelayCommand] private void ToggleDriftMulti()
     {
         var on = !_cheats.IsActive(RuntimeProfileFeature.DriftScoreMultiplier);
-        Toggle(RuntimeProfileFeature.DriftScoreMultiplier, on, ParseFloatAsIntBits(DriftMultiText, 10f), "Drift Score x");
+        Toggle(RuntimeProfileFeature.DriftScoreMultiplier, on, ParseFloatAsIntBits(DriftMultiText, 10f), "Unlocks.DriftScoreLabel");
         IsDriftMultiOn = _cheats.IsActive(RuntimeProfileFeature.DriftScoreMultiplier);
     }
     [RelayCommand] private void ApplyDriftMulti()
-        => ApplyValue(RuntimeProfileFeature.DriftScoreMultiplier, ParseFloatAsIntBits(DriftMultiText, 10f), "Drift Score x");
+        => ApplyValue(RuntimeProfileFeature.DriftScoreMultiplier, ParseFloatAsIntBits(DriftMultiText, 10f), "Unlocks.DriftScoreLabel");
 
     // ===== No Skill Break =====
     [RelayCommand] private void ToggleNoSkillBreak()
     {
         var on = !_cheats.IsActive(RuntimeProfileFeature.NoSkillBreak);
-        Toggle(RuntimeProfileFeature.NoSkillBreak, on, 0, "No Skill Break");
+        Toggle(RuntimeProfileFeature.NoSkillBreak, on, 0, "NoSkillBreak");
         IsNoSkillBreakOn = _cheats.IsActive(RuntimeProfileFeature.NoSkillBreak);
     }
 }

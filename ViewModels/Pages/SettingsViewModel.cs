@@ -22,14 +22,28 @@ public partial class AccentItemVm : ObservableObject
     public AccentItemVm(Accent a, bool selected) { Inner = a; IsSelected = selected; }
 }
 
+public partial class LanguageItemVm : ObservableObject
+{
+    public string Code { get; }
+    [ObservableProperty] private string _displayName;
+    [ObservableProperty] private bool _isSelected;
+    public LanguageItemVm(string code, string displayName, bool selected)
+    {
+        Code = code;
+        _displayName = displayName;
+        _isSelected = selected;
+    }
+}
+
 public partial class SettingsViewModel : PageViewModelBase
 {
     private readonly CheatService? _cheat;
     private readonly GameProcessService? _game;
     private readonly ProfileService? _profiles;
+    private readonly LocalizationService? _localization;
 
-    public override string PageTitle => "Settings";
-    public override string PageSubtitle => "Animations, diagnostics, profiles, about & credits.";
+    public override string PageTitle => Localization["Settings.Title"];
+    public override string PageSubtitle => Localization["Settings.Subtitle"];
     public override MaterialIconKind PageIcon => MaterialIconKind.CogOutline;
 
     public string VersionText => $"v{System.Reflection.Assembly.GetExecutingAssembly().GetName().Version?.ToString(3) ?? "?.?.?"}";
@@ -37,6 +51,7 @@ public partial class SettingsViewModel : PageViewModelBase
     [ObservableProperty] private bool _animationsEnabled;
     [ObservableProperty] private bool _mouseGlowEnabled;
     [ObservableProperty] private string _selectedAccentName = AppSettings.Current.AccentName;
+    [ObservableProperty] private LanguageItemVm? _selectedLanguageItem;
 
     // Scan results
     [ObservableProperty] private string _scanStatus = "";
@@ -53,19 +68,36 @@ public partial class SettingsViewModel : PageViewModelBase
     [ObservableProperty] private string _profileStatus = "";
 
     public IReadOnlyList<AccentItemVm> AccentOptions { get; }
+    public ObservableCollection<LanguageItemVm> LanguageOptions { get; } = [];
 
-    public SettingsViewModel() : this(null, null, null) { }
+    public SettingsViewModel() : this(null, null, null, null) { }
 
-    public SettingsViewModel(CheatService? cheat, GameProcessService? game, ProfileService? profiles)
+    public SettingsViewModel(CheatService? cheat, GameProcessService? game,
+                             ProfileService? profiles, LocalizationService? localization)
     {
         _cheat = cheat;
         _game = game;
         _profiles = profiles;
+        _localization = localization;
         AnimationsEnabled = AppSettings.Current.AnimationsEnabled;
         MouseGlowEnabled  = AppSettings.Current.MouseGlowEnabled;
         AccentOptions = AccentPalette.All
             .Select(a => new AccentItemVm(a, a.Name == SelectedAccentName))
             .ToList();
+
+        // Build language list
+        if (localization is not null)
+        {
+            var current = localization.CurrentLanguage;
+            foreach (var code in localization.AvailableLanguages)
+            {
+                var item = new LanguageItemVm(code, localization.GetDisplayName(code),
+                    code == current);
+                LanguageOptions.Add(item);
+                if (code == current) SelectedLanguageItem = item;
+            }
+        }
+
         RefreshProfiles();
     }
 
@@ -79,6 +111,32 @@ public partial class SettingsViewModel : PageViewModelBase
     {
         AppSettings.Current.MouseGlowEnabled = value;
         AppSettings.Current.NotifyChanged();
+    }
+
+    partial void OnSelectedLanguageItemChanged(LanguageItemVm? value)
+    {
+        SelectLanguage(value);
+    }
+
+    protected override void OnLanguageChanged(string code)
+    {
+        base.OnLanguageChanged(code);
+        // Refresh display names for all language options (the native name of each
+        // language may read differently in the newly-selected language).
+        if (_localization is not null)
+        {
+            foreach (var item in LanguageOptions)
+                item.DisplayName = _localization.GetDisplayName(item.Code);
+        }
+    }
+
+    public void SelectLanguage(LanguageItemVm? item)
+    {
+        if (item is null || item.IsSelected) return;
+        if (_localization is null) return;
+
+        foreach (var x in LanguageOptions) x.IsSelected = (x == item);
+        _localization.SwitchTo(item.Code);
     }
 
     public void SelectAccent(AccentItemVm? item)
@@ -116,21 +174,21 @@ public partial class SettingsViewModel : PageViewModelBase
     [RelayCommand]
     private void ScanSignatures()
     {
-        if (_cheat is null) { ScanStatus = "Service not available."; return; }
+        if (_cheat is null) { ScanStatus = Localization["Settings.ServiceNotAvailable"]; return; }
         IsScanning = true;
-        ScanStatus = "Scanning...";
+        ScanStatus = Localization["Settings.Scanning"];
 
         System.Threading.Tasks.Task.Run(() =>
         {
             var results = _cheat.ScanAllSignatures();
             var found = results.Count(r => r.Found);
             var lines = results.Select(r =>
-                $"{(r.Found ? "OK" : "MISS")}  {r.Feature}  —  {r.Detail}");
-            return $"Found {found}/{results.Count} signatures.\n\n{string.Join('\n', lines)}";
+                $"{r.Feature}  —  {r.Detail}");
+            return string.Format(Localization["Settings.ScanResult"], found, results.Count) + "\n\n" + string.Join("\n", lines);
         }).ContinueWith(t =>
         {
             IsScanning = false;
-            ScanStatus = t.IsFaulted ? $"Error: {t.Exception?.InnerException?.Message}" : t.Result;
+            ScanStatus = t.IsFaulted ? string.Format(Localization["Settings.ScanError"], t.Exception?.InnerException?.Message) : t.Result;
         });
     }
 
@@ -139,12 +197,12 @@ public partial class SettingsViewModel : PageViewModelBase
     [RelayCommand]
     private void DetectConflicts()
     {
-        if (_game is null) { ConflictStatus = "Service not available."; return; }
+        if (_game is null) { ConflictStatus = Localization["Settings.ServiceNotAvailable"]; return; }
         var conflicts = _game.DetectConflictingTrainers();
         HasConflicts = conflicts.Count > 0;
         ConflictStatus = conflicts.Count > 0
-            ? $"WARNING — Conflicting trainers detected:\n{string.Join('\n', conflicts)}"
-            : "No conflicting trainers detected.";
+            ? string.Format(Localization["Settings.ConflictWarning"], string.Join("\n", conflicts))
+            : Localization["Settings.NoConflicts"];
     }
 
     // === Profile Management ===
@@ -152,9 +210,9 @@ public partial class SettingsViewModel : PageViewModelBase
     [RelayCommand]
     private void SaveProfile()
     {
-        if (_profiles is null) { ProfileStatus = "Service not available."; return; }
+        if (_profiles is null) { ProfileStatus = Localization["Settings.ServiceNotAvailable"]; return; }
         var name = ProfileName.Trim();
-        if (string.IsNullOrWhiteSpace(name)) { ProfileStatus = "Enter a profile name first."; return; }
+        if (string.IsNullOrWhiteSpace(name)) { ProfileStatus = Localization["Settings.EnterProfileName"]; return; }
 
         var profile = new CheatProfile();
         // Capture current cheat states from CheatService if available
@@ -173,7 +231,7 @@ public partial class SettingsViewModel : PageViewModelBase
         }
 
         _profiles.Save(name, profile);
-        ProfileStatus = $"Profile \"{name}\" saved.";
+        ProfileStatus = string.Format(Localization["Settings.SavedLabel"], name);
         ProfileName = "";
         RefreshProfiles();
     }
@@ -181,18 +239,18 @@ public partial class SettingsViewModel : PageViewModelBase
     [RelayCommand]
     private void LoadProfile()
     {
-        if (_profiles is null || SelectedProfile is null) { ProfileStatus = "Select a profile first."; return; }
+        if (_profiles is null || SelectedProfile is null) { ProfileStatus = Localization["Settings.SelectProfileFirst"]; return; }
         var profile = _profiles.Load(SelectedProfile);
-        if (profile is null) { ProfileStatus = "Failed to load profile."; return; }
-        ProfileStatus = $"Profile \"{SelectedProfile}\" loaded. Apply cheats from the Unlocks/Database pages.";
+        if (profile is null) { ProfileStatus = Localization["Settings.LoadFailed"]; return; }
+        ProfileStatus = string.Format(Localization["Settings.LoadedLabel"], SelectedProfile);
     }
 
     [RelayCommand]
     private void DeleteProfile()
     {
-        if (_profiles is null || SelectedProfile is null) { ProfileStatus = "Select a profile first."; return; }
+        if (_profiles is null || SelectedProfile is null) { ProfileStatus = Localization["Settings.SelectProfileFirst"]; return; }
         _profiles.Delete(SelectedProfile);
-        ProfileStatus = $"Profile \"{SelectedProfile}\" deleted.";
+        ProfileStatus = string.Format(Localization["Settings.DeletedLabel"], SelectedProfile);
         RefreshProfiles();
     }
 

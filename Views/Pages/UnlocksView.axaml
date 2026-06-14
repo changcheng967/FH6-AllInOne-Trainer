@@ -10,17 +10,17 @@
             <!-- Hero: Quick actions -->
             <Border Classes="hero-card">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="Quick Actions" Classes="h3" />
-                    <TextBlock Text="Apply everything at once, or max all profile values." Classes="subtle" />
+                    <TextBlock Text="{Binding [Unlocks.QuickActions]}" Classes="h3" />
+                    <TextBlock Text="{Binding [Unlocks.QuickActionsTip]}" Classes="subtle" />
                     <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,4,0,0">
                         <Button Classes="primary" Padding="16,8"
-                                Content="Quick Start"
-                                ToolTip.Tip="999M Credits + Free Cars + Autoshow Unlock + All Cars"
+                                Content="{Binding [Unlocks.QuickStart]}"
+                                ToolTip.Tip="{Binding [Unlocks.QuickStartTip]}"
                                 IsEnabled="{Binding CanToggle}"
                                 Command="{Binding QuickStartCommand}" />
                         <Button Classes="ghost" Padding="16,8"
-                                Content="Max All"
-                                ToolTip.Tip="Max Credits, Wheelspins, Super Wheelspins, Skill Points"
+                                Content="{Binding [Unlocks.MaxAll]}"
+                                ToolTip.Tip="{Binding [Unlocks.MaxAllTip]}"
                                 IsEnabled="{Binding CanToggle}"
                                 Command="{Binding MaxAllCommand}" />
                     </StackPanel>
@@ -38,11 +38,11 @@
             <!-- Profile Values card -->
             <Border Classes="card">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="PROFILE VALUES" Classes="section-header" />
+                    <TextBlock Text="{Binding [Unlocks.ProfileValues]}" Classes="section-header" />
 
                     <!-- Credits -->
                     <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Credits (CR)" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [Unlocks.CreditsLabel]}" VerticalAlignment="Center" FontSize="12" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
                             <TextBox Text="{Binding CreditsAmountText}" Width="90" VerticalAlignment="Center" />
                             <Button Classes="ghost-sm" Content="10K" Command="{Binding SetCreditsCommand}" CommandParameter="10000" />
@@ -50,7 +50,7 @@
                             <Button Classes="ghost-sm" Content="1M" Command="{Binding SetCreditsCommand}" CommandParameter="1000000" />
                             <Button Classes="ghost-sm" Content="100M" Command="{Binding SetCreditsCommand}" CommandParameter="100000000" />
                             <Button Classes="ghost-sm" Content="999M" Command="{Binding SetCreditsCommand}" CommandParameter="999999999" />
-                            <Button Classes="primary" Content="Set" Padding="8,4" FontSize="10" Command="{Binding ApplyCreditsCommand}" />
+                            <Button Classes="primary" Content="{Binding [Unlocks.Set]}" Padding="8,4" FontSize="10" Command="{Binding ApplyCreditsCommand}" />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                                       IsChecked="{Binding IsCreditsOn, Mode=OneWay}"
@@ -58,18 +58,18 @@
                                       Command="{Binding ToggleCreditsCommand}" />
                     </Grid>
                     <TextBlock Classes="hint" Margin="138,0,0,0"
-                               Text="Toggle on, then buy or sell something for the change to take effect." />
+                               Text="{Binding [Unlocks.CreditsHint]}" />
 
                     <!-- Wheelspins -->
                     <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Wheelspins" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [Wheelspins]}" VerticalAlignment="Center" FontSize="12" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3">
                             <TextBox Text="{Binding WheelspinsAmountText}" Width="60" VerticalAlignment="Center" />
                             <Button Classes="ghost-sm" Content="10" Command="{Binding SetWheelspinsCommand}" CommandParameter="10" />
                             <Button Classes="ghost-sm" Content="50" Command="{Binding SetWheelspinsCommand}" CommandParameter="50" />
                             <Button Classes="ghost-sm" Content="100" Command="{Binding SetWheelspinsCommand}" CommandParameter="100" />
                             <Button Classes="ghost-sm" Content="999" Command="{Binding SetWheelspinsCommand}" CommandParameter="999" />
-                            <Button Classes="primary" Content="Set" Padding="8,4" FontSize="10" Command="{Binding ApplyWheelspinsCommand}" />
+                            <Button Classes="primary" Content="{Binding [Unlocks.Set]}" Padding="8,4" FontSize="10" Command="{Binding ApplyWheelspinsCommand}" />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                                       IsChecked="{Binding IsWheelspinsOn, Mode=OneWay}"
@@ -77,18 +77,18 @@
                                       Command="{Binding ToggleWheelspinsCommand}" />
                     </Grid>
                     <TextBlock Classes="hint" Margin="138,0,0,0"
-                               Text="Toggle on, then spin once. Count locks to your value." />
+                               Text="{Binding [Unlocks.WheelspinsHint]}" />
 
                     <!-- Super Wheelspins -->
                     <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Super Wheelspins" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [SuperWheelspins]}" VerticalAlignment="Center" FontSize="12" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3">
                             <TextBox Text="{Binding SuperWheelspinsAmountText}" Width="60" VerticalAlignment="Center" />
                             <Button Classes="ghost-sm" Content="10" Command="{Binding SetSuperWheelspinsCommand}" CommandParameter="10" />
                             <Button Classes="ghost-sm" Content="50" Command="{Binding SetSuperWheelspinsCommand}" CommandParameter="50" />
                             <Button Classes="ghost-sm" Content="100" Command="{Binding SetSuperWheelspinsCommand}" CommandParameter="100" />
                             <Button Classes="ghost-sm" Content="999" Command="{Binding SetSuperWheelspinsCommand}" CommandParameter="999" />
-                            <Button Classes="primary" Content="Set" Padding="8,4" FontSize="10" Command="{Binding ApplySuperWheelspinsCommand}" />
+                            <Button Classes="primary" Content="{Binding [Unlocks.Set]}" Padding="8,4" FontSize="10" Command="{Binding ApplySuperWheelspinsCommand}" />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                                       IsChecked="{Binding IsSuperWheelspinsOn, Mode=OneWay}"
@@ -96,18 +96,18 @@
                                       Command="{Binding ToggleSuperWheelspinsCommand}" />
                     </Grid>
                     <TextBlock Classes="hint" Margin="138,0,0,0"
-                               Text="Enable Wheelspins first, then toggle on and spin once." />
+                               Text="{Binding [Unlocks.SuperWheelspinsHint]}" />
 
                     <!-- Skill Points -->
                     <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Skill Points" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [SkillPoints]}" VerticalAlignment="Center" FontSize="12" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3">
                             <TextBox Text="{Binding SkillPointsAmountText}" Width="70" VerticalAlignment="Center" />
                             <Button Classes="ghost-sm" Content="100" Command="{Binding SetSkillPointsCommand}" CommandParameter="100" />
                             <Button Classes="ghost-sm" Content="1K" Command="{Binding SetSkillPointsCommand}" CommandParameter="1000" />
                             <Button Classes="ghost-sm" Content="10K" Command="{Binding SetSkillPointsCommand}" CommandParameter="10000" />
                             <Button Classes="ghost-sm" Content="999K" Command="{Binding SetSkillPointsCommand}" CommandParameter="999999" />
-                            <Button Classes="primary" Content="Set" Padding="8,4" FontSize="10" Command="{Binding ApplySkillPointsCommand}" />
+                            <Button Classes="primary" Content="{Binding [Unlocks.Set]}" Padding="8,4" FontSize="10" Command="{Binding ApplySkillPointsCommand}" />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                                       IsChecked="{Binding IsSkillPointsOn, Mode=OneWay}"
@@ -115,14 +115,14 @@
                                       Command="{Binding ToggleSkillPointsCommand}" />
                     </Grid>
                     <TextBlock Classes="hint" Margin="138,0,0,0"
-                               Text="Toggle on, then spend a point for the change to take effect." />
+                               Text="{Binding [Unlocks.SkillPointsHint]}" />
 
                     <!-- Sell Payout -->
                     <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Sell Payout x" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [Unlocks.SellPayoutLabel]}" VerticalAlignment="Center" FontSize="12" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3">
                             <TextBox Text="{Binding SellPayoutText}" Width="60" VerticalAlignment="Center" />
-                            <Button Classes="primary" Content="Set" Padding="8,4" FontSize="10" Command="{Binding ApplySellPayoutCommand}" />
+                            <Button Classes="primary" Content="{Binding [Unlocks.Set]}" Padding="8,4" FontSize="10" Command="{Binding ApplySellPayoutCommand}" />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                                       IsChecked="{Binding IsSellPayoutOn, Mode=OneWay}"
@@ -135,16 +135,16 @@
             <!-- Drift & Skills card -->
             <Border Classes="card">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="DRIFT &amp; SKILLS" Classes="section-header" />
+                    <TextBlock Text="{Binding [Unlocks.DriftSkills]}" Classes="section-header" />
 
                     <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Drift Score x" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [Unlocks.DriftScoreLabel]}" VerticalAlignment="Center" FontSize="12" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3">
                             <TextBox Text="{Binding DriftMultiText}" Width="50" VerticalAlignment="Center" />
                             <Button Classes="ghost-sm" Content="5" Command="{Binding ApplyDriftMultiCommand}" CommandParameter="5" />
                             <Button Classes="ghost-sm" Content="10" Command="{Binding ApplyDriftMultiCommand}" CommandParameter="10" />
                             <Button Classes="ghost-sm" Content="50" Command="{Binding ApplyDriftMultiCommand}" CommandParameter="50" />
-                            <Button Classes="primary" Content="Set" Padding="8,4" FontSize="10" Command="{Binding ApplyDriftMultiCommand}" />
+                            <Button Classes="primary" Content="{Binding [Unlocks.Set]}" Padding="8,4" FontSize="10" Command="{Binding ApplyDriftMultiCommand}" />
                         </StackPanel>
                         <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
                                       IsChecked="{Binding IsDriftMultiOn, Mode=OneWay}"
@@ -153,8 +153,8 @@
                     </Grid>
 
                     <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="No Skill Break" VerticalAlignment="Center" FontSize="12" />
-                        <TextBlock Grid.Column="1" Text="Prevent skill chain from breaking on impacts"
+                        <TextBlock Grid.Column="0" Text="{Binding [NoSkillBreak]}" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="1" Text="{Binding [Unlocks.NoSkillBreakDesc]}"
                                    VerticalAlignment="Center" FontSize="11"
                                    Foreground="{DynamicResource TextDim}" />
                         <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
@@ -169,9 +169,9 @@
             <Border Classes="card">
                 <StackPanel Spacing="6">
                     <Grid ColumnDefinitions="Auto,*,Auto">
-                        <TextBlock Grid.Column="0" Text="LOG" Classes="section-header" Margin="0" />
+                        <TextBlock Grid.Column="0" Text="{Binding [Unlocks.Log]}" Classes="section-header" Margin="0" />
                         <TextBlock Grid.Column="1" Text="trainer.log" Classes="dim" VerticalAlignment="Bottom" Margin="8,0,0,0" />
-                        <Button Grid.Column="2" Classes="ghost-sm" Content="Clear"
+                        <Button Grid.Column="2" Classes="ghost-sm" Content="{Binding [Unlocks.ClearLog]}"
                                 Command="{Binding ClearLogCommand}" />
                     </Grid>
                     <TextBox Text="{Binding LogText, Mode=OneWay}" IsReadOnly="True"

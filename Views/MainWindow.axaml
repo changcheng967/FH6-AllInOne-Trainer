@@ -10,7 +10,7 @@
         MinWidth="720" MinHeight="500"
         x:Class="FH6Mod.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="FH6 All-in-One Trainer"
+        Title="{Binding [App.Title], FallbackValue=FH6 All-in-One Trainer}"
         Background="{DynamicResource Surface0Brush}"
         WindowStartupLocation="CenterScreen"
         Icon="/Assets/logo.png">
@@ -29,19 +29,19 @@
                 <StackPanel Grid.Row="1" Spacing="4" HorizontalAlignment="Stretch"
                             VerticalAlignment="Top" Margin="0,12,0,0">
                     <Button Classes="nav-item"
-                            ToolTip.Tip="Unlocks"
+                            ToolTip.Tip="{Binding [Nav.Unlocks]}"
                             IsEnabled="{Binding !IsUnlocksPage}"
                             Command="{Binding NavigateToCommand}" CommandParameter="Unlocks">
                         <mi:MaterialIcon Kind="LockOpenVariantOutline" Width="20" Height="20" />
                     </Button>
                     <Button Classes="nav-item"
-                            ToolTip.Tip="Database"
+                            ToolTip.Tip="{Binding [Nav.Database]}"
                             IsEnabled="{Binding !IsDatabasePage}"
                             Command="{Binding NavigateToCommand}" CommandParameter="Database">
                         <mi:MaterialIcon Kind="DatabaseEditOutline" Width="20" Height="20" />
                     </Button>
                     <Button Classes="nav-item"
-                            ToolTip.Tip="Settings"
+                            ToolTip.Tip="{Binding [Nav.Settings]}"
                             IsEnabled="{Binding !IsSettingsPage}"
                             Command="{Binding NavigateToCommand}" CommandParameter="Settings">
                         <mi:MaterialIcon Kind="CogOutline" Width="20" Height="20" />

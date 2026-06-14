@@ -21,6 +21,7 @@ public sealed class AppSettings
     public int    AnimationDurationMs  { get; set; } = 320;
     public string AccentName           { get; set; } = AccentPalette.DefaultName;
     public bool   MouseGlowEnabled     { get; set; } = true;
+    public string Language             { get; set; } = "en";
 
     public static readonly string FilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
@@ -64,6 +65,12 @@ public sealed class AppSettings
             if (root.TryGetProperty("MouseGlowEnabled", out var e) &&
                 (e.ValueKind == JsonValueKind.True || e.ValueKind == JsonValueKind.False))
                 s.MouseGlowEnabled = e.GetBoolean();
+
+            if (root.TryGetProperty("Language", out var lang) && lang.ValueKind == JsonValueKind.String)
+            {
+                var l = lang.GetString();
+                if (!string.IsNullOrWhiteSpace(l)) s.Language = l;
+            }
         }
         catch
         {
@@ -84,6 +91,7 @@ public sealed class AppSettings
                 ["AnimationDurationMs"]  = AnimationDurationMs,
                 ["AccentName"]           = AccentName,
                 ["MouseGlowEnabled"]     = MouseGlowEnabled,
+                ["Language"]              = Language,
             };
             File.WriteAllText(FilePath, node.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         }

@@ -10,23 +10,23 @@
             <!-- Preferences card -->
             <Border Classes="card">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="PREFERENCES" Classes="section-header" />
+                    <TextBlock Text="{Binding [Settings.Preferences]}" Classes="section-header" />
 
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="UI animations" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [Settings.Animations]}" VerticalAlignment="Center" FontSize="12" />
                         <ToggleSwitch Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
                                       IsChecked="{Binding AnimationsEnabled, Mode=TwoWay}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Mouse hover glow" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [Settings.MouseGlow]}" VerticalAlignment="Center" FontSize="12" />
                         <ToggleSwitch Grid.Column="1" HorizontalAlignment="Right" VerticalAlignment="Center"
                                       IsChecked="{Binding MouseGlowEnabled, Mode=TwoWay}" />
                     </Grid>
 
                     <!-- Accent color -->
                     <StackPanel Spacing="6" Margin="0,4,0,0">
-                        <TextBlock Text="Accent color" FontSize="12" />
+                        <TextBlock Text="{Binding [Settings.AccentColor]}" FontSize="12" />
                         <ItemsControl ItemsSource="{Binding AccentOptions}">
                             <ItemsControl.ItemsPanel>
                                 <ItemsPanelTemplate>
@@ -51,17 +51,31 @@
                             </ItemsControl.ItemTemplate>
                         </ItemsControl>
                     </StackPanel>
+
+                    <!-- Language -->
+                    <Grid ColumnDefinitions="Auto,*" ColumnSpacing="8" Margin="0,2,0,0">
+                        <TextBlock Grid.Column="0" Text="{Binding [Settings.Language]}" VerticalAlignment="Center" FontSize="12" />
+                        <ComboBox Grid.Column="1" HorizontalAlignment="Right" MinWidth="140"
+                                  ItemsSource="{Binding LanguageOptions}"
+                                  SelectedItem="{Binding SelectedLanguageItem, Mode=TwoWay}">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate x:DataType="vm:LanguageItemVm">
+                                    <TextBlock Text="{Binding DisplayName}" VerticalAlignment="Center" />
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
+                    </Grid>
                 </StackPanel>
             </Border>
 
             <!-- Diagnostics card -->
             <Border Classes="card">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="DIAGNOSTICS" Classes="section-header" />
+                    <TextBlock Text="{Binding [Settings.Diagnostics]}" Classes="section-header" />
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Signature scan" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Content="Scan All" Classes="primary" Padding="12,4" FontSize="11"
+                        <TextBlock Grid.Column="0" Text="{Binding [Settings.ScanSignatures]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Content="{Binding [Settings.ScanAll]}" Classes="primary" Padding="12,4" FontSize="11"
                                 IsEnabled="{Binding !IsScanning}"
                                 Command="{Binding ScanSignaturesCommand}" />
                     </Grid>
@@ -71,8 +85,8 @@
                              MaxHeight="180" />
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Conflict detection" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Content="Detect" Classes="primary" Padding="12,4" FontSize="11"
+                        <TextBlock Grid.Column="0" Text="{Binding [Settings.ConflictCheck]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Content="{Binding [Settings.Detect]}" Classes="primary" Padding="12,4" FontSize="11"
                                 Command="{Binding DetectConflictsCommand}" />
                     </Grid>
                     <Border IsVisible="{Binding HasConflicts}" Background="#33FF4444" CornerRadius="6" Padding="8,4">
@@ -91,24 +105,24 @@
             <!-- Profiles card -->
             <Border Classes="card">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="CHEAT PROFILES" Classes="section-header" />
+                    <TextBlock Text="{Binding [Settings.Profiles]}" Classes="section-header" />
 
                     <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                        <TextBox Grid.Column="0" PlaceholderText="Profile name..."
+                        <TextBox Grid.Column="0" PlaceholderText="{Binding [Settings.ProfileNamePlaceholder]}"
                                  Text="{Binding ProfileName, Mode=TwoWay}" />
-                        <Button Grid.Column="1" Content="Save" Classes="primary" Padding="12,4" FontSize="11"
+                        <Button Grid.Column="1" Content="{Binding [Settings.Save]}" Classes="primary" Padding="12,4" FontSize="11"
                                 Command="{Binding SaveProfileCommand}" />
                     </Grid>
                     <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
                         <ComboBox Grid.Column="0" ItemsSource="{Binding SavedProfiles}"
                                   SelectedItem="{Binding SelectedProfile, Mode=TwoWay}"
-                                  PlaceholderText="Saved profiles..." />
-                        <Button Grid.Column="1" Content="Load" Classes="ghost" Padding="10,4" FontSize="11"
+                                  PlaceholderText="{Binding [Settings.SavedProfilesPlaceholder]}" />
+                        <Button Grid.Column="1" Content="{Binding [Settings.Load]}" Classes="ghost" Padding="10,4" FontSize="11"
                                 Command="{Binding LoadProfileCommand}" />
-                        <Button Grid.Column="2" Content="Delete" Classes="ghost" Padding="10,4" FontSize="11"
+                        <Button Grid.Column="2" Content="{Binding [Settings.Delete]}" Classes="ghost" Padding="10,4" FontSize="11"
                                 Command="{Binding DeleteProfileCommand}" />
                     </Grid>
-                    <Button Content="Open profiles folder" Classes="ghost-sm" Padding="10,4"
+                    <Button Content="{Binding [Settings.OpenProfilesFolder]}" Classes="ghost-sm" Padding="10,4"
                             HorizontalAlignment="Left"
                             Command="{Binding OpenProfilesFolderCommand}" />
                     <TextBlock Text="{Binding ProfileStatus}" Classes="dim" TextWrapping="Wrap"
@@ -119,16 +133,15 @@
             <!-- About card -->
             <Border Classes="card">
                 <StackPanel Spacing="6">
-                    <TextBlock Text="ABOUT" Classes="section-header" />
+                    <TextBlock Text="{Binding [Settings.About]}" Classes="section-header" />
                     <TextBlock Classes="dim" TextWrapping="Wrap">
-                        <Run Text="FH6 All-in-One Trainer · " />
+                        <Run Text="{Binding [Settings.AboutLine1]}" />
+                        <Run Text=" · " />
                         <Run Text="{Binding VersionText}" />
-                        <Run Text=" · GPL-3.0 · .NET 10 · Avalonia 12" />
+                        <Run Text="{Binding [Settings.AboutLine2]}" />
                     </TextBlock>
-                    <TextBlock Classes="dim" TextWrapping="Wrap">
-                        Cheats by paris' club · UI by Chaarkor · Improvements by changcheng967 · discord.gg/WSd3bRNJuJ
-                    </TextBlock>
-                    <Button Content="Open settings folder" Classes="ghost-sm"
+                    <TextBlock Classes="dim" TextWrapping="Wrap" Text="{Binding [Settings.CreditsLine]}" />
+                    <Button Content="{Binding [Settings.OpenSettingsFolder]}" Classes="ghost-sm"
                             HorizontalAlignment="Left" Margin="0,4,0,0"
                             Command="{Binding OpenSettingsFolderCommand}" />
                 </StackPanel>

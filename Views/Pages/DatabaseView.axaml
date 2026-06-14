@@ -11,11 +11,11 @@
             <!-- Hero: Unlock Everything -->
             <Border Classes="hero-card">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="Unlock Everything" Classes="h3" />
-                    <TextBlock Text="Free Cars + Install Flags + Autoshow + Clear NEW + Add All Cars + Upgrades + Wheels + Presets"
+                    <TextBlock Text="{Binding [Database.HeroTitle]}" Classes="h3" />
+                    <TextBlock Text="{Binding [Database.HeroSubtitle]}"
                                Classes="subtle" TextWrapping="Wrap" />
-                    <Button Classes="primary" Padding="16,8" Content="Unlock Everything"
-                            ToolTip.Tip="Runs all database cheats in sequence"
+                    <Button Classes="primary" Padding="16,8" Content="{Binding [Database.UnlockEverything]}"
+                            ToolTip.Tip="{Binding [Database.UnlockEverythingTip]}"
                             IsEnabled="{Binding CanToggle}"
                             Command="{Binding UnlockEverythingCommand}" />
                 </StackPanel>
@@ -32,14 +32,14 @@
             <!-- Persistent Locks card -->
             <Border Classes="card">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="PERSISTENT LOCKS" Classes="section-header" />
-                    <TextBlock Text="Re-applied every 10s" Classes="dim" Margin="0,-4,0,0" />
+                    <TextBlock Text="{Binding [Database.PersistentLocks]}" Classes="section-header" />
+                    <TextBlock Text="{Binding [Database.PersistentLocksHint]}" Classes="dim" Margin="0,-4,0,0" />
 
                     <!-- Free Cars -->
                     <Grid ColumnDefinitions="160,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Free Cars (BaseCost=0)" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.FreeCars]}" VerticalAlignment="Center" FontSize="12" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                            <Button Classes="ghost-sm" Content="Apply once"
+                            <Button Classes="ghost-sm" Content="{Binding [Database.ApplyOnce]}"
                                     IsEnabled="{Binding CanToggle}"
                                     Command="{Binding FreeCarPricesCommand}" />
                         </StackPanel>
@@ -51,9 +51,9 @@
 
                     <!-- Autoshow -->
                     <Grid ColumnDefinitions="160,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Autoshow All Visible" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.Autoshow]}" VerticalAlignment="Center" FontSize="12" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                            <Button Classes="ghost-sm" Content="Apply once"
+                            <Button Classes="ghost-sm" Content="{Binding [Database.ApplyOnce]}"
                                     IsEnabled="{Binding CanToggle}"
                                     Command="{Binding AutoshowUnlockCommand}" />
                         </StackPanel>
@@ -65,9 +65,9 @@
 
                     <!-- Install Flags -->
                     <Grid ColumnDefinitions="160,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Install Flags" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.InstallFlags]}" VerticalAlignment="Center" FontSize="12" />
                         <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="4">
-                            <Button Classes="ghost-sm" Content="Apply once"
+                            <Button Classes="ghost-sm" Content="{Binding [Database.ApplyOnce]}"
                                     IsEnabled="{Binding CanToggle}"
                                     Command="{Binding InstallFlagsCommand}" />
                         </StackPanel>
@@ -82,48 +82,48 @@
             <!-- One-Shot Actions card -->
             <Border Classes="card">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="ONE-SHOT ACTIONS" Classes="section-header" />
+                    <TextBlock Text="{Binding [Database.OneShot]}" Classes="section-header" />
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Clear NEW! Tag" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.ClearNew]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Classes="ghost-sm" Content="{Binding [Database.Apply]}"
                                 HorizontalAlignment="Left" IsEnabled="{Binding CanToggle}"
                                 Command="{Binding ClearNewTagCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Add All Cars" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.AddAllCars]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Classes="ghost-sm" Content="{Binding [Database.Apply]}"
                                 HorizontalAlignment="Left" IsEnabled="{Binding CanToggle}"
                                 Command="{Binding AddAllCarsCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Free Upgrades (47 tables)" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.FreeUpgrades]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Classes="ghost-sm" Content="{Binding [Database.Apply]}"
                                 HorizontalAlignment="Left" IsEnabled="{Binding CanToggle}"
                                 Command="{Binding FreeUpgradesCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Free Wheels" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.FreeWheels]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Classes="ghost-sm" Content="{Binding [Database.Apply]}"
                                 HorizontalAlignment="Left" IsEnabled="{Binding CanToggle}"
                                 Command="{Binding FreeWheelsCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Upgrade Presets" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.UpgradePresets]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Classes="ghost-sm" Content="{Binding [Database.Apply]}"
                                 HorizontalAlignment="Left" IsEnabled="{Binding CanToggle}"
                                 Command="{Binding UnlockPresetsCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Fill Car Buckets"
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.FillCarBuckets]}"
                                    VerticalAlignment="Center" FontSize="12"
-                                   ToolTip.Tip="Adds all cars to CarBuckets so they appear in autoshow. Use Autoshow Unlock first." />
-                        <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
+                                   ToolTip.Tip="{Binding [Database.FillCarBucketsTip]}" />
+                        <Button Grid.Column="1" Classes="ghost-sm" Content="{Binding [Database.Apply]}"
                                 HorizontalAlignment="Left" IsEnabled="{Binding CanToggle}"
                                 Command="{Binding FullAutoshowCommand}" />
                     </Grid>
@@ -133,10 +133,10 @@
             <!-- Season card with visual selectors -->
             <Border Classes="card">
                 <StackPanel Spacing="10">
-                    <TextBlock Text="SEASON" Classes="section-header" />
+                    <TextBlock Text="{Binding [Database.Season]}" Classes="section-header" />
 
                     <TextBlock Margin="0,-4,0,0">
-                        <Run Text="Current: " FontSize="12" Foreground="{DynamicResource TextSecondary}" />
+                        <Run Text="{Binding [Database.SeasonCurrent]}" FontSize="12" Foreground="{DynamicResource TextSecondary}" />
                         <Run Text="{Binding CurrentSeasonText}" FontSize="12" FontWeight="SemiBold"
                              Foreground="{DynamicResource AccentBrush}" />
                     </TextBlock>
@@ -152,7 +152,7 @@
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
                                     <mi:MaterialIcon Kind="FlowerTulipOutline" Width="20" Height="20"
                                                      Foreground="{DynamicResource SeasonSpring}" />
-                                    <TextBlock Text="Spring" FontSize="10" FontWeight="SemiBold"
+                                    <TextBlock Text="{Binding [Database.SeasonSpring]}" FontSize="10" FontWeight="SemiBold"
                                                Foreground="{DynamicResource SeasonSpring}"
                                                HorizontalAlignment="Center" />
                                 </StackPanel>
@@ -168,7 +168,7 @@
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
                                     <mi:MaterialIcon Kind="WhiteBalanceSunny" Width="20" Height="20"
                                                      Foreground="{DynamicResource SeasonSummer}" />
-                                    <TextBlock Text="Summer" FontSize="10" FontWeight="SemiBold"
+                                    <TextBlock Text="{Binding [Database.SeasonSummer]}" FontSize="10" FontWeight="SemiBold"
                                                Foreground="{DynamicResource SeasonSummer}"
                                                HorizontalAlignment="Center" />
                                 </StackPanel>
@@ -184,7 +184,7 @@
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
                                     <mi:MaterialIcon Kind="Leaf" Width="20" Height="20"
                                                      Foreground="{DynamicResource SeasonAutumn}" />
-                                    <TextBlock Text="Autumn" FontSize="10" FontWeight="SemiBold"
+                                    <TextBlock Text="{Binding [Database.SeasonAutumn]}" FontSize="10" FontWeight="SemiBold"
                                                Foreground="{DynamicResource SeasonAutumn}"
                                                HorizontalAlignment="Center" />
                                 </StackPanel>
@@ -200,7 +200,7 @@
                                 <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
                                     <mi:MaterialIcon Kind="Snowflake" Width="20" Height="20"
                                                      Foreground="{DynamicResource SeasonWinter}" />
-                                    <TextBlock Text="Winter" FontSize="10" FontWeight="SemiBold"
+                                    <TextBlock Text="{Binding [Database.SeasonWinter]}" FontSize="10" FontWeight="SemiBold"
                                                Foreground="{DynamicResource SeasonWinter}"
                                                HorizontalAlignment="Center" />
                                 </StackPanel>
@@ -208,43 +208,43 @@
                         </Button>
                     </StackPanel>
 
-                    <TextBlock Classes="dim" Text="Fast-travel or load a race to refresh visuals." />
+                    <TextBlock Classes="dim" Text="{Binding [Database.SeasonHint]}" />
                 </StackPanel>
             </Border>
 
             <!-- Physics & Performance card -->
             <Border Classes="card">
                 <StackPanel Spacing="8">
-                    <TextBlock Text="PHYSICS &amp; PERFORMANCE" Classes="section-header" />
+                    <TextBlock Text="{Binding [Database.Physics]}" Classes="section-header" />
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Drift Score 10x" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
-                                ToolTip.Tip="Sets DriftScoreScalar = 10.0 on all tracks"
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.DriftScore10x]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Classes="ghost-sm" Content="{Binding [Database.Apply]}"
+                                ToolTip.Tip="{Binding [Database.DriftScore10xTip]}"
                                 IsEnabled="{Binding CanToggle}"
                                 Command="{Binding DriftScoreCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Max Traction (Grip)" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
-                                ToolTip.Tip="Sets Traction_Road=10.0 and wet friction scales to 5.0"
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.MaxTraction]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Classes="ghost-sm" Content="{Binding [Database.Apply]}"
+                                ToolTip.Tip="{Binding [Database.MaxTractionTip]}"
                                 IsEnabled="{Binding CanToggle}"
                                 Command="{Binding MaxTractionCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Torque Scale 2x" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
-                                ToolTip.Tip="Sets GameTorqueScale = 2.0 on all cars"
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.TorqueScale]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Classes="ghost-sm" Content="{Binding [Database.Apply]}"
+                                ToolTip.Tip="{Binding [Database.TorqueScaleTip]}"
                                 IsEnabled="{Binding CanToggle}"
                                 Command="{Binding TorqueScaleCommand}" />
                     </Grid>
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Reduce Drag 0.5x" VerticalAlignment="Center" FontSize="12" />
-                        <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
-                                ToolTip.Tip="Sets GameDragScale = 0.5 on all cars for higher top speed"
+                        <TextBlock Grid.Column="0" Text="{Binding [Database.ReduceDrag]}" VerticalAlignment="Center" FontSize="12" />
+                        <Button Grid.Column="1" Classes="ghost-sm" Content="{Binding [Database.Apply]}"
+                                ToolTip.Tip="{Binding [Database.ReduceDragTip]}"
                                 IsEnabled="{Binding CanToggle}"
                                 Command="{Binding DragScaleCommand}" />
                     </Grid>

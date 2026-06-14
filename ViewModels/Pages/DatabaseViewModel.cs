@@ -15,8 +15,8 @@ public partial class DatabaseViewModel : PageViewModelBase
     private readonly GameProcessService _game;
     private readonly LogService _log;
 
-    public override string PageTitle => "Database";
-    public override string PageSubtitle => "Direct SQL writes to the game's in-memory CDatabase.";
+    public override string PageTitle => Localization["Database.Title"];
+    public override string PageSubtitle => Localization["Database.Subtitle"];
     public override MaterialIconKind PageIcon => MaterialIconKind.DatabaseEditOutline;
 
     [ObservableProperty] private string? _statusMessage;
@@ -28,7 +28,7 @@ public partial class DatabaseViewModel : PageViewModelBase
 
     [ObservableProperty] private bool _canToggle;
 
-    [ObservableProperty] private string _currentSeasonText = "Unknown";
+    [ObservableProperty] private string _currentSeasonText = "";
     [ObservableProperty] private bool _seasonAvailable;
 
     public DatabaseViewModel() : this(
@@ -54,9 +54,9 @@ public partial class DatabaseViewModel : PageViewModelBase
             CanToggle = _game.IsAttached;
             if (!CanToggle)
             {
-                StatusMessage = "FH6 is not running — start the game first.";
+                StatusMessage = Localization["Status.NotRunning"];
                 SeasonAvailable = false;
-                CurrentSeasonText = "Unknown";
+                CurrentSeasonText = Localization["Database.SeasonUnknown"];
             }
             else
             {
@@ -65,11 +65,12 @@ public partial class DatabaseViewModel : PageViewModelBase
         });
     }
 
-    private void Run(SqlFeature f, string label)
+    private void Run(SqlFeature f, string labelKey)
     {
         var ok = _cheats.RunSql(f);
+        var label = Localization[labelKey];
         StatusIsError = !ok;
-        StatusMessage = ok ? $"{label} applied. Effect persists until game restart." : _cheats.LastError;
+        StatusMessage = ok ? string.Format(Localization["Database.AppliedLabel"], label) : _cheats.LastError;
         AutoClearStatus();
     }
 
@@ -88,43 +89,44 @@ public partial class DatabaseViewModel : PageViewModelBase
         var errors = new System.Collections.Generic.List<string>();
         var labels = new System.Collections.Generic.List<string>();
 
-        void TryRun(SqlFeature f, string label)
+        void TryRun(SqlFeature f, string labelKey)
         {
             var ok = _cheats.RunSql(f);
+            var label = Localization[labelKey];
             if (ok) labels.Add(label);
             else errors.Add(label);
         }
 
-        TryRun(SqlFeature.FreeCarPrices, "Free Cars");
-        TryRun(SqlFeature.InstallFlags, "Install Flags");
-        TryRun(SqlFeature.AutoshowUnlock, "Autoshow Unlock");
-        TryRun(SqlFeature.ClearNewTag, "Clear NEW Tags");
-        TryRun(SqlFeature.AddAllCars, "Add All Cars");
-        TryRun(SqlFeature.FreeUpgrades, "Free Upgrades");
-        TryRun(SqlFeature.FreeWheels, "Free Wheels");
-        TryRun(SqlFeature.UnlockUpgradePresets, "Upgrade Presets");
-        TryRun(SqlFeature.FullAutoshow, "Full Autoshow");
+        TryRun(SqlFeature.FreeCarPrices, "Database.UeFreeCars");
+        TryRun(SqlFeature.InstallFlags, "Database.UeInstallFlags");
+        TryRun(SqlFeature.AutoshowUnlock, "Database.UeAutoshowUnlock");
+        TryRun(SqlFeature.ClearNewTag, "Database.UeClearNewTags");
+        TryRun(SqlFeature.AddAllCars, "Database.UeAddAllCars");
+        TryRun(SqlFeature.FreeUpgrades, "Database.UeFreeUpgrades");
+        TryRun(SqlFeature.FreeWheels, "Database.UeFreeWheels");
+        TryRun(SqlFeature.UnlockUpgradePresets, "Database.UeUpgradePresets");
+        TryRun(SqlFeature.FullAutoshow, "Database.UeFullAutoshow");
 
         StatusIsError = errors.Count > 0;
         StatusMessage = errors.Count == 0
-            ? $"Unlock Everything applied — {string.Join(", ", labels)}. All cars free, visible, in garage, free upgrades & wheels."
-            : $"Partially applied. Failed: {string.Join(", ", errors)}";
+            ? string.Format(Localization["Database.UnlockEverythingDone"], string.Join(", ", labels))
+            : string.Format(Localization["Database.UnlockEverythingPartial"], string.Join(", ", errors));
         AutoClearStatus();
     }
 
-    [RelayCommand] private void ClearNewTag()     => Run(SqlFeature.ClearNewTag,     "Clear NEW tags");
-    [RelayCommand] private void FreeCarPrices()   => Run(SqlFeature.FreeCarPrices,   "Free car prices");
-    [RelayCommand] private void InstallFlags()    => Run(SqlFeature.InstallFlags,    "Install flags");
-    [RelayCommand] private void AddAllCars()      => Run(SqlFeature.AddAllCars,      "Add All Cars grant");
-    [RelayCommand] private void AutoshowUnlock()  => Run(SqlFeature.AutoshowUnlock,  "Autoshow visibility");
-    [RelayCommand] private void FreeUpgrades()    => Run(SqlFeature.FreeUpgrades,    "Free upgrades (47 tables)");
-    [RelayCommand] private void FreeWheels()      => Run(SqlFeature.FreeWheels,      "Free wheels");
-    [RelayCommand] private void UnlockPresets()   => Run(SqlFeature.UnlockUpgradePresets, "Upgrade presets");
-    [RelayCommand] private void FullAutoshow()    => Run(SqlFeature.FullAutoshow,    "Full autoshow (CarBuckets)");
-    [RelayCommand] private void DriftScore()      => Run(SqlFeature.DriftScoreScalar, "Drift Score 10x");
-    [RelayCommand] private void MaxTraction()     => Run(SqlFeature.MaxTraction,     "Max Traction (grip hack)");
-    [RelayCommand] private void TorqueScale()     => Run(SqlFeature.TorqueScale,     "Torque Scale 2x");
-    [RelayCommand] private void DragScale()       => Run(SqlFeature.DragScale,       "Reduce Drag 0.5x");
+    [RelayCommand] private void ClearNewTag()     => Run(SqlFeature.ClearNewTag,     "Database.OpClearNewTags");
+    [RelayCommand] private void FreeCarPrices()   => Run(SqlFeature.FreeCarPrices,   "Database.OpFreeCarPrices");
+    [RelayCommand] private void InstallFlags()    => Run(SqlFeature.InstallFlags,    "Database.OpInstallFlags");
+    [RelayCommand] private void AddAllCars()      => Run(SqlFeature.AddAllCars,      "Database.OpAddAllCarsGrant");
+    [RelayCommand] private void AutoshowUnlock()  => Run(SqlFeature.AutoshowUnlock,  "Database.OpAutoshowVisibility");
+    [RelayCommand] private void FreeUpgrades()    => Run(SqlFeature.FreeUpgrades,    "Database.OpFreeUpgrades");
+    [RelayCommand] private void FreeWheels()      => Run(SqlFeature.FreeWheels,      "Database.OpFreeWheels");
+    [RelayCommand] private void UnlockPresets()   => Run(SqlFeature.UnlockUpgradePresets, "Database.OpUpgradePresets");
+    [RelayCommand] private void FullAutoshow()    => Run(SqlFeature.FullAutoshow,    "Database.OpFullAutoshow");
+    [RelayCommand] private void DriftScore()      => Run(SqlFeature.DriftScoreScalar, "Database.OpDriftScore10x");
+    [RelayCommand] private void MaxTraction()     => Run(SqlFeature.MaxTraction,     "Database.OpMaxTraction");
+    [RelayCommand] private void TorqueScale()     => Run(SqlFeature.TorqueScale,     "Database.OpTorqueScale");
+    [RelayCommand] private void DragScale()       => Run(SqlFeature.DragScale,       "Database.OpReduceDrag");
 
     [RelayCommand]
     private void ToggleFreeCarsLock()
@@ -134,7 +136,7 @@ public partial class DatabaseViewModel : PageViewModelBase
         IsFreeCarsLockOn = _cheats.IsSqlLockActive(SqlFeature.FreeCarPrices);
         StatusIsError = !ok;
         StatusMessage = ok
-            ? (target ? "Free Cars LOCK ON — prices stay at 0 (re-applied every 10s)." : "Free Cars LOCK OFF — restored from backup.")
+            ? (target ? Localization["Database.LockFreeCarsOn"] : Localization["Database.LockFreeCarsOff"])
             : _cheats.LastError;
         AutoClearStatus();
     }
@@ -147,7 +149,7 @@ public partial class DatabaseViewModel : PageViewModelBase
         IsAutoshowLockOn = _cheats.IsSqlLockActive(SqlFeature.AutoshowUnlock);
         StatusIsError = !ok;
         StatusMessage = ok
-            ? (target ? "Autoshow LOCK ON — every car visible (re-applied every 10s)." : "Autoshow LOCK OFF — restored from backup.")
+            ? (target ? Localization["Database.LockAutoshowOn"] : Localization["Database.LockAutoshowOff"])
             : _cheats.LastError;
         AutoClearStatus();
     }
@@ -160,7 +162,7 @@ public partial class DatabaseViewModel : PageViewModelBase
         IsInstallFlagsLockOn = _cheats.IsSqlLockActive(SqlFeature.InstallFlags);
         StatusIsError = !ok;
         StatusMessage = ok
-            ? (target ? "Install Flags LOCK ON — every car stays Installed/Purchased/Drivable (re-applied every 10s)." : "Install Flags LOCK OFF — restored from backup.")
+            ? (target ? Localization["Database.LockInstallFlagsOn"] : Localization["Database.LockInstallFlagsOff"])
             : _cheats.LastError;
         AutoClearStatus();
     }
@@ -175,29 +177,29 @@ public partial class DatabaseViewModel : PageViewModelBase
         }
         else
         {
-            CurrentSeasonText = "Not loaded";
+            CurrentSeasonText = Localization["Database.SeasonNotLoaded"];
             SeasonAvailable = false;
         }
     }
 
-    private void ApplySeason(int season, string label)
+    private void ApplySeason(int season, string labelKey)
     {
         var ok = _cheats.SetSeason(season, out var err);
         StatusIsError = !ok;
-        StatusMessage = ok ? $"Season set to {label}. Fast-travel or load a race to refresh visuals." : err;
+        StatusMessage = ok ? string.Format(Localization["Database.SeasonSet"], Localization[labelKey]) : err;
         if (ok) RefreshSeason();
         AutoClearStatus();
     }
 
-    [RelayCommand] private void SetSpring() => ApplySeason(0, "Spring");
-    [RelayCommand] private void SetSummer() => ApplySeason(1, "Summer");
-    [RelayCommand] private void SetAutumn() => ApplySeason(2, "Autumn");
-    [RelayCommand] private void SetWinter() => ApplySeason(3, "Winter");
+    [RelayCommand] private void SetSpring() => ApplySeason(0, "Database.SeasonSpring");
+    [RelayCommand] private void SetSummer() => ApplySeason(1, "Database.SeasonSummer");
+    [RelayCommand] private void SetAutumn() => ApplySeason(2, "Database.SeasonAutumn");
+    [RelayCommand] private void SetWinter() => ApplySeason(3, "Database.SeasonWinter");
 
     [RelayCommand]
     private void RefreshSeasonStatus()
     {
-        if (!_game.IsAttached) { CurrentSeasonText = "Not loaded"; SeasonAvailable = false; return; }
+        if (!_game.IsAttached) { CurrentSeasonText = Localization["Database.SeasonNotLoaded"]; SeasonAvailable = false; return; }
         RefreshSeason();
     }
 }

@@ -14,12 +14,21 @@ namespace FH6Mod;
 public partial class App : Application
 {
     public static IServiceProvider Services { get; private set; } = null!;
+    /// <summary>
+    /// App-wide localisation service. Set after <see cref="OnFrameworkInitializationCompleted"/>
+    /// initialises the DI container. Accessible from any ViewModel via the base class property.
+    /// </summary>
+    public static LocalizationService Localization { get; private set; } = null!;
 
     public override void Initialize() => AvaloniaXamlLoader.Load(this);
 
     public override void OnFrameworkInitializationCompleted()
     {
         Services = ConfigureServices();
+
+        // Initialise localisation (loads files, applies saved language)
+        Localization = Services.GetRequiredService<LocalizationService>();
+        Localization.Initialize();
 
         ApplyAccent(AccentPalette.ByName(AppSettings.Current.AccentName));
 
@@ -41,8 +50,9 @@ public partial class App : Application
     public static event Action<Accent>? AccentChanged;
 
     /// <summary>
-    /// Swap the 4 accent SolidColorBrush resources at runtime. Anything bound with
-    /// {DynamicResource AccentBrush*} updates instantly across the whole app.
+    /// Swap the 4 accent SolidColorBrush resources at runtime, plus derive surface
+    /// panel colours from the accent's Base so the whole UI picks up the theme.
+    /// Anything bound with {DynamicResource ...} updates instantly.
     ///
     /// Remove+Add (rather than indexer set) so Avalonia's ResourceDictionary fires
     /// the ResourcesChanged event that DynamicResource subscribers listen on —
@@ -56,12 +66,32 @@ public partial class App : Application
         Swap("AccentBrushHover",   new SolidColorBrush(Color.Parse(accent.Hover)));
         Swap("AccentBrushPressed", new SolidColorBrush(Color.Parse(accent.Pressed)));
         Swap("AccentBrushMuted",   new SolidColorBrush(Color.Parse(accent.Muted)));
+
+        // Derive surface panel colours from the accent Base so the theme
+        // permeates the background surfaces (cards, sidebar, borders).
+        var c = Color.Parse(accent.Base);
+        Swap("Surface0Brush",      new SolidColorBrush(Scale(c, 0.06)));
+        Swap("Surface1Brush",      new SolidColorBrush(Scale(c, 0.10)));
+        Swap("Surface2Brush",      new SolidColorBrush(Scale(c, 0.14)));
+        Swap("Surface3Brush",      new SolidColorBrush(Scale(c, 0.18)));
+        Swap("SurfaceBorderBrush", new SolidColorBrush(Scale(c, 0.22)));
+
         AccentChanged?.Invoke(accent);
 
         void Swap(string key, SolidColorBrush brush)
         {
             if (res!.ContainsKey(key)) res.Remove(key);
             res.Add(key, brush);
+        }
+
+        // Scale each RGB channel toward black by `factor` (0 = pure black).
+        static Color Scale(Color c, double factor)
+        {
+            var clamp = (double v) => (byte)Math.Clamp(v, 0, 255);
+            return new Color(c.A,
+                clamp(c.R * factor),
+                clamp(c.G * factor),
+                clamp(c.B * factor));
         }
     }
 
@@ -74,6 +104,7 @@ public partial class App : Application
         services.AddSingleton<CheatService>();
         services.AddSingleton<UpdateCheckService>();
         services.AddSingleton<ProfileService>();
+        services.AddSingleton<LocalizationService>();
         services.AddSingleton<MainWindowViewModel>();
 
         // Singletons so page state (toggle states, entered values) survives nav switches.
@@ -82,7 +113,8 @@ public partial class App : Application
         services.AddSingleton<SettingsViewModel>(sp => new SettingsViewModel(
             sp.GetRequiredService<CheatService>(),
             sp.GetRequiredService<GameProcessService>(),
-            sp.GetRequiredService<ProfileService>()));
+            sp.GetRequiredService<ProfileService>(),
+            sp.GetRequiredService<LocalizationService>()));
 
         return services.BuildServiceProvider();
     }

@@ -13,7 +13,7 @@ public partial class MainWindowViewModel : ViewModelBase
     private readonly GameProcessService _gameProcess;
 
     [ObservableProperty]
-    private string _gameStatusText = "FH6 disconnected";
+    private string _gameStatusText = "";  // initialized in constructor
 
     [ObservableProperty]
     private bool _isGameAttached;
@@ -56,6 +56,7 @@ public partial class MainWindowViewModel : ViewModelBase
     {
         _gameProcess = gameProcess;
         _gameProcess.StatusChanged += OnGameStatusChanged;
+        Localization.LanguageChanged += _ => OnGameStatusChanged();
         OnGameStatusChanged();
 
         UnlocksPage = App.Services.GetRequiredService<UnlocksViewModel>();
@@ -87,8 +88,11 @@ public partial class MainWindowViewModel : ViewModelBase
         {
             IsGameAttached = _gameProcess.IsAttached;
             GameStatusText = _gameProcess.IsAttached
-                ? $"FH6 connected · PID {_gameProcess.Pid}"
-                : "FH6 disconnected";
+                ? Localization["Status.Connected"] + $" · PID {_gameProcess.Pid}"
+                : Localization["Status.Disconnected"];
+            // Refresh page headers when language switches
+            OnPropertyChanged(nameof(PageTitleText));
+            OnPropertyChanged(nameof(PageSubtitleText));
         });
     }
 }
