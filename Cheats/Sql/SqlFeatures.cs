@@ -119,12 +119,12 @@ internal static class SqlFeatureCatalog
 
         SqlFeature.MaxTraction => new(
             "Max Traction (Grip Hack)",
-            "Sets Traction_Road = 10.0 and WetFriction scales to 5.0 on all cars and tire compounds — massive grip increase.",
+            "Doubles Traction_Road (x2) and wet friction scales (x1.5) on all cars and tire compounds. Strong grip without the rollover the old 10x value caused.",
             [
                 "CREATE TABLE IF NOT EXISTS _backup_MaxTraction_Car AS SELECT Id, Traction_Road FROM Data_Car;",
-                "UPDATE Data_Car SET Traction_Road = 10.0;",
+                "UPDATE Data_Car SET Traction_Road = Traction_Road * 2.0 WHERE Traction_Road IS NOT NULL;",
                 "CREATE TABLE IF NOT EXISTS _backup_MaxTraction_Tire AS SELECT rowid, WetFrictionModFrictionScale, WetOffroadFrictionScale FROM List_TireCompound;",
-                "UPDATE List_TireCompound SET WetFrictionModFrictionScale = 5.0, WetOffroadFrictionScale = 5.0;",
+                "UPDATE List_TireCompound SET WetFrictionModFrictionScale = WetFrictionModFrictionScale * 1.5, WetOffroadFrictionScale = WetOffroadFrictionScale * 1.5 WHERE WetFrictionModFrictionScale IS NOT NULL AND WetOffroadFrictionScale IS NOT NULL;",
             ]),
 
         SqlFeature.TorqueScale => new(
