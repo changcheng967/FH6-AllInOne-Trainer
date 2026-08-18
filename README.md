@@ -6,9 +6,11 @@ An all-in-one trainer for **Forza Horizon 6** — car/physics cheats, live SQL a
 
 ## Status
 
-The current release is **v8.0.0**.
+The current release is **v8.1.0**.
 
-**v8.0.0 restores the CRC bypass and re-enables profile hooks.** Forza Horizon 6 periodically hashes its own code section (`.text`) and kills the process on any mismatch. v8.0.0 swaps the CRC validation function pointer to a `ret` stub via in-process shellcode and re-arms it on a timer, so `.text` hooks survive the integrity scan. Profile value toggles (Credits, Wheelspins, Super Wheelspins, Skill Points) and physics hooks (Drift multiplier, No Skill Break, Sell Payout) now work.
+**v8.0.0 restored the CRC bypass and re-enabled profile hooks.** Forza Horizon 6 periodically hashes its own code section (`.text`) and kills the process on any mismatch. The trainer swaps the CRC validation function pointer to a `ret` stub via in-process shellcode and re-arms it on a timer, so `.text` hooks survive the integrity scan. Profile value toggles (Credits, Wheelspins, Super Wheelspins, Skill Points) and physics hooks (Drift multiplier, No Skill Break, Sell Payout) work.
+
+**v8.1.0** fixes the version display (a hardcoded AssemblyInfo pinned every build to v6.0.0 — the v8.0.0 zip actually contained a v6 binary), adds Season and Time of Day controls, and makes Super Grip double each car's own grip instead of a flat 10x that flipped cars in corners.
 
 - **Profile value hooks** — Credits, Wheelspins, Super Wheelspins, Skill Points, Drift Score, No Skill Break, Sell Payout. Toggle ON; the CRC bypass protects the hooks automatically.
 - **Memory Scanner** — crash-free value finder/setter. Scan for any in-game number and Set or Lock it. Version-independent (finds values by content, not fixed offsets).
@@ -53,6 +55,10 @@ Latest release: **[GitHub Releases](../../releases)** — download the `.zip`, e
 ### Quick Actions
 - **Quick Start** — 999M Credits + Free Cars + Autoshow Unlock + Install Flags + All Cars
 - **Max All** — max Credits, Wheelspins, Super Wheelspins, Skill Points
+
+### World
+- **Season** — switch Spring / Summer / Autumn / Winter instantly
+- **Time of Day** — set any hour (0.0 to 24.0) with presets and lock it
 
 ## Known Limitations
 
