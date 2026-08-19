@@ -370,7 +370,11 @@ public sealed class CheatService : IDisposable
     public int GetCurrentSeason()
     {
         if (!_engine.IsAttached) return -1;
-        if (!_season.IsResolved && !_season.Resolve(out _)) return -1;
+        if (!_season.IsResolved)
+        {
+            _engine.EnsureSeasonHook(out _);
+            if (!_season.Resolve(out _)) return -1;
+        }
         return _season.GetCurrentSeason();
     }
 
@@ -380,9 +384,18 @@ public sealed class CheatService : IDisposable
         if (!EnsureAttached()) { error = "Not attached."; return false; }
         if (season < 0 || season > 3) { error = "Invalid season (0-3)."; return false; }
 
+        // Season hook is strictly opt-in: installed here, only when the user actually
+        // invokes a Season feature. Never as a side effect of enabling profile cheats.
+        if (!_season.IsResolved && !_engine.EnsureSeasonHook(out var hookErr))
+        {
+            error = $"Season hook: {hookErr}";
+            _log.Error(error);
+            return false;
+        }
+
         if (!_season.IsResolved && !_season.Resolve(out var resolveErr))
         {
-            error = $"Season entity not found: {resolveErr}";
+            error = $"Season entity not found: {resolveErr} If the game was already running, reload into the world so the season system fires once, then try again.";
             _log.Error(error);
             return false;
         }

@@ -20,6 +20,7 @@ public sealed class RuntimeHookEngine : IDisposable
     // Season entity capture hook
     private ulong _seasonCaveAddr;
     private ulong _seasonEntityStorageAddr;
+    private ulong _seasonEntityStorageAltAddr;
     private bool _seasonHookInstalled;
     private readonly Dictionary<string, ulong> _preResolvedTargets = new(StringComparer.OrdinalIgnoreCase);
     private bool _preResolved;
@@ -151,7 +152,7 @@ public sealed class RuntimeHookEngine : IDisposable
     public bool   IsExecutableAddressPublic(ulong addr) => IsExecutableAddress(addr);
 
     /// <summary>
-    /// Returns the captured season entity pointer, or null if not yet captured.
+    /// Returns the captured season entity pointer (RDI slot), or null if not yet captured.
     /// The hook fires when the game calls SeasonSettings::Loaded during initialization.
     /// </summary>
     public ulong? GetCapturedSeasonEntity()
@@ -159,6 +160,43 @@ public sealed class RuntimeHookEngine : IDisposable
         if (_seasonEntityStorageAddr == 0) return null;
         var ptr = ReadUInt64(_seasonEntityStorageAddr);
         return ptr != 0 ? ptr : null;
+    }
+
+    /// <summary>
+    /// Returns the season entity pointer captured from RCX at the same site — the x64
+    /// "this" register. If the RDI assumption behind the primary slot is wrong for a
+    /// given build, this slot holds the real entity pointer instead.
+    /// </summary>
+    public ulong? GetCapturedSeasonEntityAlt()
+    {
+        if (_seasonEntityStorageAltAddr == 0) return null;
+        var ptr = ReadUInt64(_seasonEntityStorageAltAddr);
+        return ptr != 0 ? ptr : null;
+    }
+
+    /// <summary>
+    /// Explicitly installs the season entity capture hook. Called only when the user
+    /// invokes a Season feature — never as a side effect of enabling profile cheats
+    /// (that coupling crashed the MS Store build, see #184).
+    /// </summary>
+    public bool EnsureSeasonHook(out string? error)
+    {
+        error = null;
+        if (_seasonHookInstalled) return true;
+        if (!IsAttached) { error = "Not attached."; return false; }
+        try
+        {
+            var bytes = ReadBytes(_mainBase, _mainSize);
+            if (bytes.Length == 0) { error = "Could not read main module."; return false; }
+            InstallSeasonHook(bytes);
+            if (!_seasonHookInstalled) { error = "Season hook site not found in this build."; return false; }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Season hook install failed: {ex.Message}";
+            return false;
+        }
     }
     public bool   IsAddressHooked(ulong addr) => _hookedAddresses.Contains(addr);
 
@@ -638,10 +676,6 @@ public sealed class RuntimeHookEngine : IDisposable
         _crcBypassActive = true;
         StartCrcTimer();
         L($"CRC bypass armed. ptr=0x{fnPtrAddr:X}, ret=0x{retAddr:X}");
-
-        // Preserve season-entity capture hook (used by SeasonChanger). Installed after the
-        // CRC bypass is armed so this .text modification is covered by the re-arm timer.
-        InstallSeasonHook(bytes);
     }
 
     private void StartCrcTimer()
@@ -722,9 +756,13 @@ public sealed class RuntimeHookEngine : IDisposable
         }
         if (stringOff < 0) { L("Season: string not found"); return; }
 
-        // 2. Find LEA RDX,[rip+disp] pointing to this string (unique match)
+        // 2. Find LEA RDX,[rip+disp] pointing to this string. Must be a UNIQUE match:
+        // the byte scan is not instruction-aligned, so on a build we have not verified
+        // a second (or mid-instruction) match means the site is ambiguous and we refuse
+        // to patch rather than corrupt unrelated code (#184 Store-build crash).
         // LEA RDX = 48 8D 15 XX XX XX XX
         ulong hookRVA = 0;
+        int leaMatches = 0;
         for (uint i = 0x1000; i < moduleBytes.Length - 7; i++)
         {
             if (moduleBytes[i] == 0x48 && moduleBytes[i + 1] == 0x8D && moduleBytes[i + 2] == 0x15)
@@ -734,44 +772,55 @@ public sealed class RuntimeHookEngine : IDisposable
                 if (target == stringOff)
                 {
                     hookRVA = i;
-                    break;
+                    leaMatches++;
                 }
             }
         }
-        if (hookRVA == 0) { L("Season: LEA not found"); return; }
+        if (leaMatches != 1)
+        {
+            L($"Season: refusing to hook — expected 1 LEA reference to the string, found {leaMatches}");
+            return;
+        }
 
         var hookAddr = _mainBase + hookRVA;
         L($"Season: hook target at 0x{hookAddr:X}");
 
         // 3. Allocate code cave (64 bytes: code + captured pointer storage)
         const int caveSize = 64;
-        const int storageOffset = 0x30; // where captured entity pointer is stored
+        const int storageOffset = 0x30;  // RDI slot (decompile assumption: param_1 moved to RDI)
+        const int storageAltOffset = 0x38; // RCX slot (x64 "this" register)
         var caveAddr = AllocateNear(hookAddr, caveSize);
         _seasonCaveAddr = caveAddr;
         _seasonEntityStorageAddr = caveAddr + storageOffset;
+        _seasonEntityStorageAltAddr = caveAddr + storageAltOffset;
 
         // 4. Build code cave:
-        //    +0x00: MOV [rip+disp], RDI  (7 bytes) — save entity pointer
-        //    +0x07: LEA RDX,[rip+disp]   (7 bytes) — original LEA with recomputed disp
-        //    +0x0E: JMP back             (5 bytes)
-        //    +0x30: captured pointer      (8 bytes)
+        //    +0x00: MOV [rip+disp], RDI  (7 bytes) — save RDI (decompile param_1)
+        //    +0x07: MOV [rip+disp], RCX  (7 bytes) — save RCX (x64 "this")
+        //    +0x0E: LEA RDX,[rip+disp]   (7 bytes) — original LEA with recomputed disp
+        //    +0x15: JMP back             (5 bytes)
+        //    +0x30: RDI slot (8 bytes)   +0x38: RCX slot (8 bytes)
         var cave = new byte[caveSize];
 
-        // MOV [rip+0x29], RDI → stores RDI to cave+0x07+0x29 = cave+0x30
+        // MOV [rip+0x29], RDI → rip after = cave+7; 0x30-0x07 = 0x29
         cave[0] = 0x48; cave[1] = 0x89; cave[2] = 0x3D;
-        cave[3] = (byte)(storageOffset - 7); // disp = 0x30 - 0x07 = 0x29
+        cave[3] = (byte)(storageOffset - 7);
         cave[4] = 0x00; cave[5] = 0x00; cave[6] = 0x00;
+
+        // MOV [rip+0x2A], RCX → rip after = cave+14; 0x38-0x0E = 0x2A
+        cave[7] = 0x48; cave[8] = 0x89; cave[9] = 0x0D;
+        BitConverter.GetBytes(storageAltOffset - 14).CopyTo(cave, 10);
 
         // LEA RDX,[rip+newDisp] — recomputed displacement for the moved instruction
         int origDisp = BitConverter.ToInt32(moduleBytes, (int)hookRVA + 3);
         ulong stringTarget = hookAddr + 7 + (ulong)(long)origDisp;
-        long newDisp = (long)(stringTarget - (caveAddr + 14)); // rip after LEA = cave+7+7=14
-        cave[7] = 0x48; cave[8] = 0x8D; cave[9] = 0x15;
-        BitConverter.GetBytes((int)newDisp).CopyTo(cave, 10);
+        long newDisp = (long)(stringTarget - (caveAddr + 21)); // rip after LEA = cave+14+7=21
+        cave[14] = 0x48; cave[15] = 0x8D; cave[16] = 0x15;
+        BitConverter.GetBytes((int)newDisp).CopyTo(cave, 17);
 
         // JMP back to hookAddr + 7 (resume after the original LEA)
-        var jmpBack = BuildRelativeJump(caveAddr + 14, hookAddr + 7, 5);
-        Buffer.BlockCopy(jmpBack, 0, cave, 14, jmpBack.Length);
+        var jmpBack = BuildRelativeJump(caveAddr + 21, hookAddr + 7, 5);
+        Buffer.BlockCopy(jmpBack, 0, cave, 21, jmpBack.Length);
 
         WriteBytes(caveAddr, cave);
 
