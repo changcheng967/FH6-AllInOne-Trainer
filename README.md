@@ -11,7 +11,6 @@ Current release: **v8.1.2** — download from [GitHub Releases](../../releases).
 | Subsystem | Status |
 |---|---|
 | SQL cheats (cars, upgrades, prices) | works on all game builds tested |
-| Memory Scanner (find / set / lock any value) | works on all game builds tested |
 | Profile hooks (Credits, Wheelspins, Skill Points, Drift, …) | works on v403.798 — v420.696 pending field reports |
 | Season switcher | Steam builds |
 | Instant Rewards (wheelspin wallet write) | v403.798 |
@@ -26,7 +25,7 @@ Get the `.zip` from **[GitHub Releases](../../releases)**, extract, and run `FH6
 
 1. Start Forza Horizon 6 and **load fully into the world** (be driving, not in a menu).
 2. Launch the trainer as Administrator and attach.
-3. To edit money/spins/points, toggle the **Profile Values** on, or use the **Memory Scanner** for any other integer: enter your exact current value, click **Find Value**, narrow with Next Scan if needed, then **Set** (or **Lock** to keep it applied).
+3. To edit money/spins/points, toggle the **Profile Values** on (Credits, Wheelspins, etc.).
 4. SQL cheats (cars, upgrades, etc.) are on the Database tab — one click.
 
 > Enable cheats only once you are fully in-game. Offline mode only.
@@ -42,12 +41,6 @@ Get the `.zip` from **[GitHub Releases](../../releases)**, extract, and run `FH6
 ### Physics & Performance (SQL)
 - Drift Score 10x, Max Traction (x3 per-car grip), Torque 2x, Reduce Drag 0.5x
 
-### Memory Scanner (crash-free)
-- **Find Value** — enter your current in-game number; the trainer scans all writable memory for it
-- Narrow with **Next Scan** filters (Exact / Increased / Decreased / Changed / Unchanged)
-- Set a value once, or **Lock** it to keep re-applying; make an address **Permanent** with a static pointer chain
-- Works for Credits, Wheelspins, Super Wheelspins, Skill Points, XP, and any integer
-
 ### Profile Values (runtime hooks — CRC-protected)
 - Credits, Wheelspins, Super Wheelspins, Skill Points, Drift Score Multiplier, No Skill Break, Sell Payout
 - **Instant Rewards** — writes wheelspin / super-wheelspin counts directly into the reward wallet (data write, no hooks)
@@ -62,7 +55,7 @@ Get the `.zip` from **[GitHub Releases](../../releases)**, extract, and run `FH6
 ## Known Limitations
 
 - **Experimental hooks are disabled** (Time of Day, Gravity, Teleport, Acceleration, and the rest of the ForzaMods-ported set). They will return one at a time after a validation round. Skill Score Multiplier and Speed Trap Multiplier are permanently disabled — their signatures match too many code sites to hook safely.
-- **Signature-based cheats** (SQL database AOBs, profile hook signatures) may need updating when Forza Horizon 6 patches. The Memory Scanner is version-independent (finds values by content).
+- **Signature-based cheats** (SQL database AOBs, profile hook signatures) may need updating when Forza Horizon 6 patches.
 - **Offline mode only.** Online play will not work and may result in a ban.
 
 ## Build from Source

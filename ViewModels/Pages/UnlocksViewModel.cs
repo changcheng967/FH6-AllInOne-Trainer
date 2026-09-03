@@ -1,8 +1,5 @@
 using System;
-using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Linq;
-using System.Threading.Tasks;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FH6Mod.Cheats.RuntimeHook;
@@ -56,27 +53,8 @@ public partial class UnlocksViewModel : PageViewModelBase
     // --- Season ---
     [ObservableProperty] private int _selectedSeason;
 
-    // --- Memory scanner (crash-free value finder) ---
-    [ObservableProperty] private string _scanValueText = "";
-    [ObservableProperty] private string _scanResultText = "No scan yet. Enter your current in-game value and press First Scan.";
-    [ObservableProperty] private string _desiredValueText = "999999999";
-    [ObservableProperty] private bool _isScanning;
-    [ObservableProperty] private bool _isScanLockOn;
-    [ObservableProperty] private string _permanentLabelText = "Credits";
+    // --- Instant Rewards ---
     [ObservableProperty] private string _grantAmountText = "100";
-
-    // Saved permanent addresses (pointer chains). Persisted; resolved fresh each launch.
-    public ObservableCollection<SavedPointerItemVm> SavedChains { get; } = new();
-    [ObservableProperty] private bool _hasSavedChains;
-
-    public void RefreshSavedChains()
-    {
-        SavedChains.Clear();
-        var i = 0;
-        foreach (var e in _cheats.SavedPointers)
-            SavedChains.Add(new SavedPointerItemVm(_cheats, this, i++, e));
-        HasSavedChains = SavedChains.Count > 0;
-    }
 
     public UnlocksViewModel()
         : this(App.Services.GetRequiredService<CheatService>(),
@@ -91,7 +69,6 @@ public partial class UnlocksViewModel : PageViewModelBase
         _game.StatusChanged += OnGameStatusChanged;
         _log.Changed += OnLogChanged;
         CanToggle = _game.IsAttached;
-        RefreshSavedChains();
     }
 
     private void OnGameStatusChanged()
@@ -101,8 +78,6 @@ public partial class UnlocksViewModel : PageViewModelBase
             CanToggle = _game.IsAttached;
             if (!CanToggle)
                 StatusMessage = "FH6 is not running — start the game first.";
-            else
-                RefreshSavedChains();
         });
     }
 
@@ -298,119 +273,6 @@ public partial class UnlocksViewModel : PageViewModelBase
         SetStatus(ok, ok ? $"Season set to {label}." : err);
     }
 
-    // ===== Memory Scanner (crash-free value editing) =====
-    // Finds an in-game number by value, then writes a new one directly to memory.
-    // No code hooks, so it cannot trigger the integrity scan that crashes the game.
-
-    private void RefreshScanResult(int n)
-    {
-        if (n < 0) { ScanResultText = "Scan failed (not attached?)."; return; }
-        if (n == 0) { ScanResultText = "0 matches. Try a different value or the changed/increased filters."; return; }
-        var addrs = _cheats.ScannerAddresses;
-        var sample = string.Join("\n", addrs.Take(8).Select(a => $"  0x{a:X}"));
-        var more = n > 8 ? $"\n  ...and {n - 8} more" : "";
-        ScanResultText = $"{n} match{(n == 1 ? "" : "es")}:\n{sample}{more}";
-    }
-
-    [RelayCommand]
-    private async Task FirstScanAsync()
-    {
-        if (!CanToggle) { SetStatus(false, "FH6 is not running."); return; }
-        var value = Parse(ScanValueText, 0);
-        IsScanning = true;
-        ScanResultText = "Scanning memory (can take a few seconds)...";
-        try
-        {
-            var n = await System.Threading.Tasks.Task.Run(() => _cheats.ScanFirst(value));
-            RefreshScanResult(n);
-            SetStatus(n >= 0, n > 0 ? $"First scan: {n} matches." : "No matches for that value.");
-        }
-        finally { IsScanning = false; }
-    }
-
-    /// <summary>
-    /// One-shot canonical finder: scans for the value, then keeps only real profile fields
-    /// (valid guard pointer at +8). Aims to return the correct canonical address on the first
-    /// try so Set/Lock sticks, with no repeated narrowing.
-    /// </summary>
-    [RelayCommand]
-    private async Task FindValueAsync()
-    {
-        if (!CanToggle) { SetStatus(false, "FH6 is not running."); return; }
-        var value = Parse(ScanValueText, 0);
-        IsScanning = true;
-        ScanResultText = "Finding canonical value (scan + profile-field filter, a few seconds)...";
-        try
-        {
-            var n = await System.Threading.Tasks.Task.Run(() => _cheats.FindValue(value));
-            RefreshScanResult(n);
-            SetStatus(n >= 0, n > 0
-                ? $"Found {n} canonical match(es). Enter the amount you want and Set (or Lock)."
-                : "No canonical match. Double-check the value, or use First Scan + filters.");
-        }
-        finally { IsScanning = false; }
-    }
-
-    [RelayCommand]
-    private async Task NextScanExactAsync()
-    {
-        if (!CanToggle) return;
-        var value = Parse(ScanValueText, 0);
-        await RunFilterAsync(() => _cheats.ScanExact(value), "exact");
-    }
-
-    [RelayCommand] private async Task NextScanIncreasedAsync() => await RunFilterAsync(_cheats.ScanIncreased, "increased");
-    [RelayCommand] private async Task NextScanDecreasedAsync() => await RunFilterAsync(_cheats.ScanDecreased, "decreased");
-    [RelayCommand] private async Task NextScanChangedAsync()   => await RunFilterAsync(_cheats.ScanChanged,   "changed");
-    [RelayCommand] private async Task NextScanUnchangedAsync() => await RunFilterAsync(_cheats.ScanUnchanged, "unchanged");
-
-    private async System.Threading.Tasks.Task RunFilterAsync(Func<int> op, string label)
-    {
-        if (!CanToggle) return;
-        IsScanning = true;
-        try
-        {
-            var n = await System.Threading.Tasks.Task.Run(op);
-            RefreshScanResult(n);
-            SetStatus(true, $"{label}: {n} match{(n == 1 ? "" : "es")}.");
-        }
-        finally { IsScanning = false; }
-    }
-
-    [RelayCommand]
-    private void ScanSetValue()
-    {
-        if (!CanToggle) { SetStatus(false, "FH6 is not running."); return; }
-        if (_cheats.ScannerMatchCount == 0) { SetStatus(false, "Scan for the value first."); return; }
-        var value = Parse(DesiredValueText, 0);
-        var written = _cheats.ScanWrite(value);
-        SetStatus(written > 0, written > 0
-            ? $"Set {value} at {written} address{(written == 1 ? "" : "es")}."
-            : (_cheats.LastError ?? "Write failed."));
-        RefreshScanResult(_cheats.ScannerMatchCount);
-    }
-
-    [RelayCommand]
-    private void ToggleScanLock()
-    {
-        if (!CanToggle) { SetStatus(false, "FH6 is not running."); return; }
-        var on = !_cheats.IsScanLockActive;
-        if (on && _cheats.ScannerMatchCount == 0) { SetStatus(false, "Scan for the value first."); return; }
-        var value = Parse(DesiredValueText, 0);
-        var ok = _cheats.ScanLock(value, on);
-        IsScanLockOn = _cheats.IsScanLockActive;
-        SetStatus(ok, ok ? (on ? "Lock ON (value re-applied every few seconds)." : "Lock OFF.") : _cheats.LastError);
-    }
-
-    [RelayCommand]
-    private void NewScan()
-    {
-        _cheats.ScannerReset();
-        IsScanLockOn = _cheats.IsScanLockActive;
-        ScanResultText = "Scan reset. Enter a value and press First Scan.";
-        SetStatus(true, "Scan reset.");
-    }
-
     // ===== Instant reward grants (call the game's grant function — no scanning) =====
     [RelayCommand]
     private void GrantWheelspins()
@@ -426,35 +288,5 @@ public partial class UnlocksViewModel : PageViewModelBase
         var v = Parse(GrantAmountText, 100);
         var ok = _cheats.GrantSuperWheelspins(v);
         SetStatus(ok, ok ? $"Granted {v} super wheelspins." : _cheats.LastError);
-    }
-
-    /// <summary>
-    /// After a value scan narrows to the real address, discover a static pointer chain
-    /// to it and save it. Future launches resolve the chain directly (one-click), no scan.
-    /// </summary>
-    [RelayCommand]
-    private async Task FindPermanentAsync()
-    {
-        if (!CanToggle) { SetStatus(false, "FH6 is not running."); return; }
-        var addrs = _cheats.CurrentScanAddresses;
-        if (addrs.Count == 0) { SetStatus(false, "Scan for the value first (need at least 1 match)."); return; }
-
-        var target = addrs[0];
-        IsScanning = true;
-        ScanResultText = "Searching for a permanent pointer chain (can take 1-3 minutes)...";
-        try
-        {
-            var chains = await System.Threading.Tasks.Task.Run(() => _cheats.FindPointerChains(target));
-            if (chains.Count == 0)
-            {
-                SetStatus(false, "No static pointer chain found. Narrow the scan to exactly 1 match and retry. Some values have no permanent address.");
-                return;
-            }
-            var label = string.IsNullOrWhiteSpace(PermanentLabelText) ? "value" : PermanentLabelText;
-            _cheats.SavePointerChain(chains[0], label);
-            RefreshSavedChains();
-            SetStatus(true, $"Saved permanent address for {label}: {chains[0]}");
-        }
-        finally { IsScanning = false; }
     }
 }

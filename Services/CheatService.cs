@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using FH6Mod.Cheats.RuntimeHook;
-using FH6Mod.Cheats.Scan;
 using FH6Mod.Cheats.Season;
 using FH6Mod.Cheats.Sql;
 
@@ -15,11 +14,7 @@ public sealed class CheatService : IDisposable
     private readonly RuntimeHookEngine _engine = new();
     private readonly SqlExecutor _sql;
     private readonly SeasonChanger _season;
-    private readonly MemoryScanner _scanner;
-    private readonly PointerScanner _pointerScan;
     private readonly RewardCaller _reward;
-    private readonly List<SavedPointerStore.Entry> _savedPointers;
-    private readonly Dictionary<int, System.Threading.CancellationTokenSource> _chainLocks = new();
     private readonly HashSet<RuntimeProfileFeature> _active = new();
     private int _lastAttachedPid;
 
@@ -36,10 +31,7 @@ public sealed class CheatService : IDisposable
         _log = log;
         _sql = new SqlExecutor(_engine);
         _season = new SeasonChanger(_engine);
-        _scanner = new MemoryScanner(_engine);
-        _pointerScan = new PointerScanner(_engine);
         _reward = new RewardCaller(_engine);
-        _savedPointers = SavedPointerStore.Load();
         _engine.SetLogCallback(msg => _log.Info(msg));
         _game.StatusChanged += OnGameStatusChanged;
     }
@@ -58,8 +50,6 @@ public sealed class CheatService : IDisposable
             _active.Clear();
             _sql.Reset();
             _season.Reset();
-            _scanner.Reset();
-            StopAllChainLocks();
             try { _engine.Detach(); }
             catch (Exception ex) { LastError = $"Detach on game-exit failed: {ex.Message}"; _log.Error($"Detach failed: {ex.Message}"); }
         }
@@ -164,33 +154,6 @@ public sealed class CheatService : IDisposable
 
     public bool IsSqlLockActive(SqlFeature feature) => _sql.IsLockActive(feature);
 
-    // ===== Memory scanner (crash-free value finder/setter) =====
-
-    public int ScannerMatchCount => _scanner.MatchCount;
-    public IReadOnlyList<ulong> ScannerAddresses => _scanner.Addresses;
-    public bool IsScanLockActive => _scanner.IsLockActive;
-
-    public int ScanFirst(int value)
-    {
-        if (!EnsureAttached()) return -1;
-        var n = _scanner.FirstScan(value, msg => _log.Info(msg));
-        _log.Info($"Scan: first scan for {value} -> {n} matches");
-        return n;
-    }
-
-    /// <summary>
-    /// One-shot canonical-value finder: scan for the value, then keep only matches that are
-    /// real profile fields (valid guard pointer at [addr+8]). Result is the canonical address
-    /// on the first try — no repeated narrowing. Crash-free (read + data write only).
-    /// </summary>
-    public int FindValue(int value)
-    {
-        if (!EnsureAttached()) return -1;
-        var n = _scanner.FindCanonicalValue(value, msg => _log.Info(msg));
-        _log.Info($"FindValue: {value} -> {n} canonical match(es)");
-        return n;
-    }
-
     // ===== Instant reward grants (Phorza-style: call the game's grant function via shellcode) =====
 
     private bool GrantReward(int type, int amount, string label)
@@ -209,156 +172,6 @@ public sealed class CheatService : IDisposable
 
     public bool GrantWheelspins(int amount) => GrantReward(0, amount, "Wheelspins");
     public bool GrantSuperWheelspins(int amount) => GrantReward(1, amount, "Super Wheelspins");
-
-    public int ScanExact(int value)
-    {
-        if (!EnsureAttached()) return -1;
-        var n = _scanner.NextScanExact(value);
-        _log.Info($"Scan: exact {value} -> {n} matches");
-        return n;
-    }
-
-    public int ScanIncreased() { if (!EnsureAttached()) return -1; return LogScan("increased", _scanner.NextScanIncreased()); }
-    public int ScanDecreased() { if (!EnsureAttached()) return -1; return LogScan("decreased", _scanner.NextScanDecreased()); }
-    public int ScanChanged()   { if (!EnsureAttached()) return -1; return LogScan("changed",   _scanner.NextScanChanged()); }
-    public int ScanUnchanged() { if (!EnsureAttached()) return -1; return LogScan("unchanged", _scanner.NextScanUnchanged()); }
-
-    private int LogScan(string kind, int n) { _log.Info($"Scan: {kind} -> {n} matches"); return n; }
-
-    public int ScanWrite(int value)
-    {
-        if (!EnsureAttached()) return 0;
-        if (_scanner.MatchCount > 64)
-        {
-            LastError = $"{_scanner.MatchCount} matches is too many to write safely. Use Next Scan to narrow below 64 (ideally to 1) before setting.";
-            _log.Info($"Scan: write BLOCKED, {_scanner.MatchCount} matches (narrow first)");
-            return 0;
-        }
-        var written = _scanner.WriteAll(value);
-        _log.Info($"Scan: wrote {value} to {written}/{_scanner.MatchCount} addresses");
-        LastError = null;
-        return written;
-    }
-
-    public bool ScanLock(int value, bool on, int periodSec = 3)
-    {
-        if (!EnsureAttached()) return false;
-        if (on)
-        {
-            if (_scanner.MatchCount == 0) { LastError = "Nothing to lock — scan first."; return false; }
-            if (!_scanner.StartLock(value, periodSec)) { LastError = "Lock failed."; return false; }
-            _log.Info($"Scan: LOCK ON (value={value}, every {periodSec}s, {_scanner.MatchCount} addr)");
-        }
-        else
-        {
-            _scanner.StopLock();
-            _log.Info("Scan: LOCK OFF");
-        }
-        LastError = null;
-        return true;
-    }
-
-    public void ScannerReset() { _scanner.Reset(); _log.Info("Scan: reset"); }
-
-    // ===== Pointer chains (permanent, ASLR-safe addresses) =====
-
-    public IReadOnlyList<SavedPointerStore.Entry> SavedPointers => _savedPointers;
-    public IReadOnlyList<ulong> CurrentScanAddresses => _scanner.Addresses;
-
-    /// <summary>
-    /// Run the pointer scanner against one found address to discover a static-rooted
-    /// chain. Pass the value address from a successful value scan.
-    /// </summary>
-    public List<PointerChain> FindPointerChains(ulong targetAddress, Action<string>? progress = null)
-    {
-        if (!EnsureAttached()) return new List<PointerChain>();
-        progress ??= msg => _log.Info(msg);
-        var chains = _pointerScan.FindChains(targetAddress, maxDepth: 4, maxResults: 8, progress);
-        _log.Info($"Pointer scan for 0x{targetAddress:X} -> {chains.Count} chain(s)");
-        return chains;
-    }
-
-    public bool SavePointerChain(PointerChain chain, string label)
-    {
-        _savedPointers.Add(SavedPointerStore.ToEntry(chain, label));
-        SavedPointerStore.Save(_savedPointers);
-        _log.Info($"Scan: SAVED pointer chain '{label}' -> {chain}");
-        return true;
-    }
-
-    public bool RemoveSavedChain(int index)
-    {
-        if (index < 0 || index >= _savedPointers.Count) return false;
-        StopChainLock(index);
-        _savedPointers.RemoveAt(index);
-        SavedPointerStore.Save(_savedPointers);
-        return true;
-    }
-
-    public (ulong Address, int Value)? ReadSavedChain(int index)
-    {
-        if (!EnsureAttached() || index < 0 || index >= _savedPointers.Count) return null;
-        var chain = SavedPointerStore.ToChain(_savedPointers[index]);
-        var addr = chain.Resolve(_engine);
-        if (addr == null) return null;
-        return (addr.Value, _engine.ReadInt32Public(addr.Value));
-    }
-
-    public bool WriteSavedChain(int index, int value)
-    {
-        if (!EnsureAttached() || index < 0 || index >= _savedPointers.Count) return false;
-        var chain = SavedPointerStore.ToChain(_savedPointers[index]);
-        var addr = chain.Resolve(_engine);
-        if (addr == null) { LastError = "Chain no longer resolves (game patched or layout changed)."; return false; }
-        _engine.WriteInt32Public(addr.Value, value);
-        _log.Info($"Scan: wrote {value} via saved chain '{_savedPointers[index].Label}' @ 0x{addr.Value:X}");
-        LastError = null;
-        return true;
-    }
-
-    public bool IsChainLockActive(int index) => _chainLocks.ContainsKey(index);
-
-    public bool ChainLock(int index, int value, bool on, int periodSec = 3)
-    {
-        if (!EnsureAttached() || index < 0 || index >= _savedPointers.Count) return false;
-        if (on)
-        {
-            var chain = SavedPointerStore.ToChain(_savedPointers[index]);
-            var data = BitConverter.GetBytes(value);
-            var cts = new System.Threading.CancellationTokenSource();
-            _chainLocks[index] = cts;
-            _ = System.Threading.Tasks.Task.Run(async () =>
-            {
-                while (!cts.IsCancellationRequested)
-                {
-                    var a = chain.Resolve(_engine);
-                    if (a != null && _engine.IsAttached)
-                        _engine.WriteInt32Public(a.Value, value);
-                    try { await System.Threading.Tasks.Task.Delay(Math.Max(1, periodSec) * 1000, cts.Token); }
-                    catch (System.Threading.Tasks.TaskCanceledException) { return; }
-                }
-            }, cts.Token);
-            _log.Info($"Scan: chain lock ON '{_savedPointers[index].Label}' = {value}");
-        }
-        else StopChainLock(index);
-        LastError = null;
-        return true;
-    }
-
-    private void StopChainLock(int index)
-    {
-        if (_chainLocks.TryGetValue(index, out var cts))
-        {
-            cts.Cancel(); cts.Dispose();
-            _chainLocks.Remove(index);
-        }
-    }
-
-    private void StopAllChainLocks()
-    {
-        foreach (var cts in _chainLocks.Values) { cts.Cancel(); cts.Dispose(); }
-        _chainLocks.Clear();
-    }
 
     public List<(RuntimeProfileFeature Feature, bool Found, string Detail)> ScanAllSignatures()
     {
