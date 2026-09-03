@@ -54,6 +54,8 @@ Get the `.zip` from **[GitHub Releases](../../releases)**, extract, and run `FH6
 
 ## Known Limitations
 
+- **Don't switch away from the game while playing offline.** When you alt-tab or minimize FH6 and come back, the game's own PlayFab cloud-save protection may shut it down on purpose ("We'll shutdown the game to avoid updating save-data halfway through gameplay"). This is built into the game — it happens without the trainer too — and it is not a trainer crash. Just keep the game in the foreground while playing.
+
 - **Experimental hooks are disabled** (Time of Day, Gravity, Teleport, Acceleration, and the rest of the ForzaMods-ported set). They will return one at a time after a validation round. Skill Score Multiplier and Speed Trap Multiplier are permanently disabled — their signatures match too many code sites to hook safely.
 - **Signature-based cheats** (SQL database AOBs, profile hook signatures) may need updating when Forza Horizon 6 patches.
 - **Offline mode only.** Online play will not work and may result in a ban.
