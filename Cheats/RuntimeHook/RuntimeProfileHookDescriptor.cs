@@ -192,9 +192,11 @@ internal static class ProfileFeatureCatalog
         },
 
         // ===== NEW CHEATS (ForzaMods AIO signatures) =====
-        // 11/14 verified via cdb RE — signatures uniquely match, ExpectedOriginal verified.
-        // 1 still broken: NoClip (collision function not yet identified).
-        // FreezeAI and Acceleration fixed via Frida live RE (velocity interp + vector norm).
+        // Ported signatures, but none were ever live-testable: every one of them was
+        // missing Key/Name until v8.1.2, so enabling any feature in this block silently
+        // installed the Teleport hook instead (dictionary collision on Key="").
+        // They ship disabled pending a field validation round; two signatures
+        // (SkillScoreMultiplier, SpeedTrapMultiplier) are too generic to hook safely.
 
         // Freeze AI: returns early from velocity interpolation (rcx=entity A, rdx=entity B)
         // Function reads vel X/Y/Z from both entities, interpolates, writes back to A.
@@ -226,6 +228,8 @@ internal static class ProfileFeatureCatalog
         // Confirmed FH6 match: 0F 10 8B 30 02 00 00 (movups xmm1,[rbx+230h])
         RuntimeProfileFeature.Teleport => new()
         {
+            Key = "Teleport", Name = "Teleport",
+            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
             Signature = "0F 10 8B 30 02 00 00 0F 11 8F 30 02 00 00",
             MatchOffset = 0, HookSize = 7,
             ExpectedOriginal = [15, 16, 139, 48, 2, 0, 0],
@@ -248,6 +252,7 @@ internal static class ProfileFeatureCatalog
         // Original: 48 8B C4 4C 89 40 18 56 41 57 41
         RuntimeProfileFeature.NoClip => new()
         {
+            Key = "NoClip", Name = "No Clip",
             BrokenNote = "Hooks wrong function (string/hash compare, not collision)",
             Signature = "48 8B ? 4C 89 ? ? 56 41 ? 41",
             MatchOffset = 0, HookSize = 7,
@@ -273,6 +278,8 @@ internal static class ProfileFeatureCatalog
         // Original: F3 0F 59 73 08  (mulss xmm1,[rbx+8])
         RuntimeProfileFeature.GravityMultiplier => new()
         {
+            Key = "GravityMultiplier", Name = "Gravity Multiplier",
+            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
             Signature = "F3 0F ? ? ? F3 0F ? ? ? ? ? ? F3 0F ? ? ? ? ? ? 45 84 ? 74",
             MatchOffset = 0, HookSize = 5,
             ExpectedOriginal = [243, 15, 89, 75, 8],
@@ -295,6 +302,8 @@ internal static class ProfileFeatureCatalog
         // Original: 48 8B C4 F3 0F 11 48 10
         RuntimeProfileFeature.NoWaterDrag => new()
         {
+            Key = "NoWaterDrag", Name = "No Water Drag",
+            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
             Signature = "48 8B ? F3 0F ? ? ? 53 55",
             MatchOffset = 0, HookSize = 8,
             ExpectedOriginal = [72, 139, 196, 243, 15, 17, 72, 16],
@@ -319,6 +328,8 @@ internal static class ProfileFeatureCatalog
         // Original: F2 0F 11 43 08  (movsd [rbx+8],xmm0)
         RuntimeProfileFeature.TimeOfDay => new()
         {
+            Key = "TimeOfDay", Name = "Time of Day",
+            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
             Signature = "44 0F ? ? ? ? F2 0F ? ? ? 48 83 C4",
             MatchOffset = 6, HookSize = 5,
             ExpectedOriginal = [242, 15, 17, 67, 8],
@@ -340,6 +351,8 @@ internal static class ProfileFeatureCatalog
         // Skill Score Multiplier: imul earned skill score by multiplier
         RuntimeProfileFeature.SkillScoreMultiplier => new()
         {
+            Key = "SkillScoreMultiplier", Name = "Skill Score Multiplier",
+            BrokenNote = "Signature matches 100+ code sites — cannot be hooked safely",
             Signature = "8B 78 08 48 8B 18 48 3B DF",
             MatchOffset = 0, HookSize = 7,
             ExpectedOriginal = [139, 120, 8, 72, 139, 24, 72],
@@ -365,6 +378,8 @@ internal static class ProfileFeatureCatalog
         // Prize Scale: multiply wheelspin reward float
         RuntimeProfileFeature.PrizeScale => new()
         {
+            Key = "PrizeScale", Name = "Prize Scale",
+            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
             Signature = "F3 0F 10 73 10 44 0F 29 40",
             MatchOffset = 0, HookSize = 5,
             ExpectedOriginal = [243, 15, 16, 115, 16],
@@ -386,6 +401,8 @@ internal static class ProfileFeatureCatalog
         // Remove Build Cap: zero out the engine swap/build power cap
         RuntimeProfileFeature.RemoveBuildCap => new()
         {
+            Key = "RemoveBuildCap", Name = "Remove Build Cap",
+            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
             Signature = "E8 ? ? ? ? F3 0F ? ? ? 48 8B ? ? ? 48 8B",
             MatchOffset = 5, HookSize = 5,
             ExpectedOriginal = [243, 15, 17, 69, 0],
@@ -407,6 +424,8 @@ internal static class ProfileFeatureCatalog
         // Race Time Scale: multiply race timer
         RuntimeProfileFeature.RaceTimeScale => new()
         {
+            Key = "RaceTimeScale", Name = "Race Time Scale",
+            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
             Signature = "40 ? 48 83 EC ? 48 8B ? 48 8B ? 0F 29 ? ? ? 0F 28 ? FF 50 ? 0F 57",
             MatchOffset = 29, HookSize = 8,
             ExpectedOriginal = [243, 15, 90, 206, 242, 15, 88, 200],
@@ -431,6 +450,8 @@ internal static class ProfileFeatureCatalog
         // Function normalizes a 3D vector from [rbp+0],[rbp+8],[rbp+C] using pshufd+mag
         RuntimeProfileFeature.Acceleration => new()
         {
+            Key = "Acceleration", Name = "Acceleration",
+            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
             Signature = "F3 0F 10 4D 08 F3 0F 10 55 0C 0F 28 5C 24 40 F3 0F 10 D8 0F C6 DB D2",
             MatchOffset = 8, HookSize = 5,
             ExpectedOriginal = [243, 15, 16, 85, 12],
@@ -452,6 +473,8 @@ internal static class ProfileFeatureCatalog
         // Speed Trap Multiplier: multiply speed trap score
         RuntimeProfileFeature.SpeedTrapMultiplier => new()
         {
+            Key = "SpeedTrapMultiplier", Name = "Speed Trap Multiplier",
+            BrokenNote = "Signature matches 5 code sites — ambiguous, cannot be hooked safely",
             Signature = "0F 29 ? ? ? 48 8B ? 48 8B ? ? ? ? ? 48 85 ? 74",
             MatchOffset = 0, HookSize = 5,
             ExpectedOriginal = [15, 41, 116, 36, 64],
@@ -473,6 +496,8 @@ internal static class ProfileFeatureCatalog
         // Mission Time Scale: scale mission timer (0 = freeze)
         RuntimeProfileFeature.MissionTimeScale => new()
         {
+            Key = "MissionTimeScale", Name = "Mission Time Scale",
+            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
             Signature = "F3 0F ? ? F3 0F ? ? ? ? ? ? 0F 2F ? 0F 87 ? ? ? ? C7 ? ? ? ? ? 00 00 00 00",
             MatchOffset = 0, HookSize = 12,
             ExpectedOriginal = [243, 15, 92, 199, 243, 15, 17, 131, 76, 4, 0, 0],
@@ -496,6 +521,8 @@ internal static class ProfileFeatureCatalog
         // Free Clothing: set clothing item price to 0
         RuntimeProfileFeature.FreeClothing => new()
         {
+            Key = "FreeClothing", Name = "Free Clothing",
+            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
             Signature = "8B 88 A4 00 00 00 89 4D",
             MatchOffset = 0, HookSize = 6,
             ExpectedOriginal = [139, 136, 164, 0, 0, 0],

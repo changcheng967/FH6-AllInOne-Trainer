@@ -116,17 +116,14 @@ public sealed class RuntimeHookEngine : IDisposable
                                 continue;
                         }
 
-                        found = true;
-                        var offsetInfo = ExtractStructOffset(original, desc);
                         if (BytesStartWith(original, desc.ExpectedOriginal))
                         {
-                            detail = $"{brokenPrefix}Match @ 0x{hookAddr:X} ({label}, exact{offsetInfo})";
+                            found = true;
+                            detail = $"{brokenPrefix}Match @ 0x{hookAddr:X} ({label}, exact{ExtractStructOffset(original, desc)})";
+                            break;
                         }
-                        else
-                        {
-                            detail = $"{brokenPrefix}Match @ 0x{hookAddr:X} ({label}, dynamic — bytes: {FormatBytes(original)}{offsetInfo})";
-                        }
-                        break;
+
+                        detail = $"{brokenPrefix}Bytes mismatch @ 0x{hookAddr:X} ({label}): expected {FormatBytes(desc.ExpectedOriginal)}, got {FormatBytes(original)}";
                     }
                 }
 
@@ -454,14 +451,11 @@ public sealed class RuntimeHookEngine : IDisposable
     }
 
     /// <summary>
-    /// Multi-candidate signature resolver with context-aware validation.
-    /// Tries primary signature first, then AltSignatures as fallbacks.
-    /// For each match, validates ExpectedOriginal and struct offset ranges.
+    /// Multi-candidate signature resolver. Tries primary signature first, then
+    /// AltSignatures as fallbacks. A candidate is accepted only when the bytes at
+    /// the hook site equal ExpectedOriginal (exact match) — no dynamic fallback,
+    /// so an updated build refuses cleanly instead of patching the wrong site.
     /// Deduplicates against addresses already claimed by other cheats.
-    /// Picks the best candidate:
-    ///  1. Exact match (bytes == ExpectedOriginal) with context — preferred
-    ///  2. Context-validated dynamic candidate — accepted with dynamic byte patching
-    ///  3. Any non-patched candidate — last resort
     /// </summary>
     private ulong FindProfileHookTarget(byte[] moduleBytes, RuntimeProfileHookDescriptor desc)
     {
@@ -472,8 +466,6 @@ public sealed class RuntimeHookEngine : IDisposable
         bool anyMatchFound = false;
         bool anyTargetPatched = false;
         string firstMismatchSample = string.Empty;
-        ulong? contextCandidate = null;
-        ulong? dynamicCandidate = null;
 
         foreach (var (sig, label) in sigs)
         {
@@ -525,46 +517,23 @@ public sealed class RuntimeHookEngine : IDisposable
                     }
                 }
 
-                // Extract struct offset from the instruction for diagnostics
-                var offsetInfo = ExtractStructOffset(original, desc);
-
-                // Best case: exact match
                 if (BytesStartWith(original, desc.ExpectedOriginal))
                 {
-                    L($"{desc.Name}: match at 0x{hookAddr:X} ({label}) — exact{offsetInfo}");
+                    L($"{desc.Name}: match at 0x{hookAddr:X} ({label}) — exact{ExtractStructOffset(original, desc)}");
                     _hookedAddresses.Add(hookAddr);
                     return hookAddr;
                 }
 
-                // First context-validated dynamic candidate wins
-                contextCandidate ??= hookAddr;
-                L($"{desc.Name}: match at 0x{hookAddr:X} ({label}) — context OK, dynamic candidate{offsetInfo}");
-
-                dynamicCandidate ??= hookAddr;
                 if (string.IsNullOrEmpty(firstMismatchSample))
                     firstMismatchSample = $"expected {FormatBytes(desc.ExpectedOriginal)}, got {FormatBytes(original)}";
             }
-        }
-
-        if (contextCandidate.HasValue)
-        {
-            L($"{desc.Name}: using context-validated dynamic candidate at 0x{contextCandidate.Value:X}. {firstMismatchSample}");
-            _hookedAddresses.Add(contextCandidate.Value);
-            return contextCandidate.Value;
-        }
-
-        if (dynamicCandidate.HasValue)
-        {
-            L($"{desc.Name}: ExpectedOriginal mismatch — using dynamic byte patching. {firstMismatchSample}");
-            _hookedAddresses.Add(dynamicCandidate.Value);
-            return dynamicCandidate.Value;
         }
 
         if (!anyMatchFound)
             throw new InvalidOperationException($"{desc.Name} signature was not found (tried primary + {desc.AltSignatures.Length} alts).\nPrimary: {desc.Signature}");
         if (anyTargetPatched)
             throw new InvalidOperationException($"{desc.Name} hook target already patched by another tool. Close other trainers and retry.");
-        throw new InvalidOperationException($"{desc.Name} hook target bytes mismatch (FH6 may have updated). {firstMismatchSample}");
+        throw new InvalidOperationException($"{desc.Name} hook target bytes mismatch (FH6 may have updated; exact match required). {firstMismatchSample}");
     }
 
     /// <summary>
@@ -596,7 +565,7 @@ public sealed class RuntimeHookEngine : IDisposable
         if (desc.OriginalRegions.Length == 0)
         {
             var nopPatch = desc.Asm;
-            WriteHookAtomic(hookAddr, nopPatch);
+            WriteProtectedBytes(hookAddr, nopPatch);
             return new RuntimeDetour
             {
                 Name = desc.Name,
@@ -632,7 +601,7 @@ public sealed class RuntimeHookEngine : IDisposable
         WriteBytes(caveAddr, cave);
 
         var hookPatch = BuildRelativeJump(hookAddr, caveAddr, desc.HookSize);
-        WriteHookAtomic(hookAddr, hookPatch);
+        WriteProtectedBytes(hookAddr, hookPatch);
 
         return new RuntimeDetour
         {
@@ -830,7 +799,7 @@ public sealed class RuntimeHookEngine : IDisposable
         // Read original bytes before overwriting
         var originalLea = ReadBytes(hookAddr, 7);
 
-        WriteHookAtomic(hookAddr, hookPatch);
+        WriteProtectedBytes(hookAddr, hookPatch);
 
         // Register as a detour so the CRC timer restores/re-applies it
         _hooks["SeasonCapture"] = new RuntimeDetour
@@ -845,53 +814,6 @@ public sealed class RuntimeHookEngine : IDisposable
 
         _seasonHookInstalled = true;
         L($"Season hook installed. cave=0x{caveAddr:X}, storage=0x{_seasonEntityStorageAddr:X}");
-    }
-
-    /// <summary>
-    /// Suspend all threads in the target process and return their handles for later resumption.
-    /// We use THREAD_SUSPEND_RESUME access (not THREAD_ALL_ACCESS) to minimize privilege requirements.
-    /// </summary>
-    private List<IntPtr> SuspendAllGameThreads()
-    {
-        var handles = new List<IntPtr>();
-        if (_process == null) return handles;
-
-        var pid = (uint)_process.Id;
-        var snap = Native.CreateToolhelp32Snapshot(Native.TH32CS_SNAPTHREAD, 0);
-        if (snap == IntPtr.Zero || snap == new IntPtr(-1)) return handles;
-
-        try
-        {
-            var te = new Native.THREADENTRY32 { dwSize = (uint)System.Runtime.InteropServices.Marshal.SizeOf<Native.THREADENTRY32>() };
-            if (!Native.Thread32First(snap, ref te)) return handles;
-
-            do
-            {
-                if (te.th32OwnerProcessID != pid) continue;
-                var hThread = Native.OpenThread(Native.THREAD_SUSPEND_RESUME, false, te.th32ThreadID);
-                if (hThread == IntPtr.Zero) continue;
-                Native.SuspendThread(hThread);
-                handles.Add(hThread);
-            } while (Native.Thread32Next(snap, ref te));
-        }
-        finally
-        {
-            Native.CloseHandle(snap);
-        }
-        return handles;
-    }
-
-    private void ResumeAllGameThreads(List<IntPtr> handles)
-    {
-        foreach (var h in handles)
-        {
-            try
-            {
-                Native.ResumeThread(h);
-                Native.CloseHandle(h);
-            }
-            catch { }
-        }
     }
 
     // ===== low-level read/write/alloc =====
@@ -940,104 +862,6 @@ public sealed class RuntimeHookEngine : IDisposable
             throw new InvalidOperationException("VirtualProtectEx failed.");
         try { WriteBytes(address, data); }
         finally { Native.VirtualProtectEx(_handle, new IntPtr((long)address), (UIntPtr)(ulong)data.Length, old, out _); }
-    }
-
-    /// <summary>
-    /// Installs a hook IN-PROCESS via injected shellcode. The shellcode runs inside
-    /// the game (via CreateRemoteThread), calls VirtualProtect + writes the bytes
-    /// from a game thread — making the .text modification invisible to the game's
-    /// external-write integrity scanner. Threads are suspended for atomicity (prevents
-    /// another thread from executing a half-written instruction). This is the key
-    /// difference from the old external WriteProcessMemory approach that was detected.
-    /// </summary>
-    private void WriteHookAtomic(ulong address, byte[] data)
-    {
-        var threads = SuspendAllGameThreads();
-        try
-        {
-            var kernel32 = Native.GetModuleHandle("kernel32.dll");
-            var vp = Native.GetProcAddress(kernel32, "VirtualProtect");
-            if (vp == IntPtr.Zero)
-                throw new InvalidOperationException("Could not resolve VirtualProtect");
-
-            var shellcode = BuildHookInstallerShellcode(data, (ulong)vp.ToInt64());
-
-            var codeMem = Native.VirtualAllocEx(_handle, IntPtr.Zero, (UIntPtr)4096,
-                Native.MEM_COMMIT | Native.MEM_RESERVE, Native.PAGE_EXECUTE_READWRITE);
-            if (codeMem == IntPtr.Zero)
-                throw new InvalidOperationException("VirtualAllocEx failed for hook installer");
-
-            try
-            {
-                WriteBytes((ulong)codeMem.ToInt64(), shellcode);
-
-                var thread = Native.CreateRemoteThread(_handle, IntPtr.Zero, 0,
-                    codeMem, new IntPtr((long)address), 0, out _);
-                if (thread == IntPtr.Zero)
-                    throw new InvalidOperationException("CreateRemoteThread failed for hook installer");
-
-                Native.WaitForSingleObject(thread, 5000);
-                Native.CloseHandle(thread);
-            }
-            finally { Native.VirtualFreeEx(_handle, codeMem, UIntPtr.Zero, Native.MEM_RELEASE); }
-
-            L($"Hook installed in-process @ 0x{address:X} ({data.Length}B via shellcode)");
-        }
-        finally { ResumeAllGameThreads(threads); }
-    }
-
-    /// <summary>
-    /// Builds x64 shellcode that: VirtualProtect(target, RWX) → memcpy(target, hookBytes) →
-    /// VirtualProtect(target, old). The target address comes from CreateRemoteThread's
-    /// lpParameter (RCX). VirtualProtect address + hook bytes are embedded inline.
-    /// </summary>
-    private static byte[] BuildHookInstallerShellcode(byte[] hookBytes, ulong vpAddr)
-    {
-        var code = new System.Collections.Generic.List<byte>(128);
-
-        // sub rsp, 0x28 (shadow space + align)
-        code.AddRange(new byte[] { 0x48, 0x83, 0xEC, 0x28 });
-        // mov r10, rcx (save target — rcx = lpParameter from CreateRemoteThread)
-        code.AddRange(new byte[] { 0x49, 0x89, 0xCA });
-
-        // --- VirtualProtect(target, hookSize, PAGE_EXECUTE_READWRITE, &old) ---
-        code.AddRange(new byte[] { 0x4C, 0x89, 0xD1 });        // mov rcx, r10 (target)
-        code.Add(0xBA); code.AddRange(BitConverter.GetBytes(hookBytes.Length)); // mov edx, size
-        code.AddRange(new byte[] { 0x41, 0xB8, 0x40, 0x00, 0x00, 0x00 });       // mov r8d, 0x40
-        code.AddRange(new byte[] { 0x4C, 0x8D, 0x4C, 0x24, 0x20 });             // lea r9, [rsp+0x20]
-        code.Add(0x48); code.Add(0xB8); code.AddRange(BitConverter.GetBytes(vpAddr)); // movabs rax, vp
-        code.Add(0xFF); code.Add(0xD0);                          // call rax
-
-        // --- memcpy(target, hookBytes, hookSize) ---
-        code.AddRange(new byte[] { 0x4C, 0x89, 0xD7 });        // mov rdi, r10 (dest = target)
-        int leaPatch = code.Count;
-        code.AddRange(new byte[] { 0x48, 0x8D, 0x35, 0, 0, 0, 0 }); // lea rsi, [rip+disp] (placeholder)
-        code.Add(0xB9); code.AddRange(BitConverter.GetBytes(hookBytes.Length)); // mov ecx, size
-        code.Add(0xF3); code.Add(0xA4);                         // rep movsb
-
-        // --- VirtualProtect(target, hookSize, old, &dummy) ---
-        code.AddRange(new byte[] { 0x4C, 0x89, 0xD1 });        // mov rcx, r10
-        code.Add(0xBA); code.AddRange(BitConverter.GetBytes(hookBytes.Length));
-        code.AddRange(new byte[] { 0x44, 0x8B, 0x44, 0x24, 0x20 }); // mov r8d, [rsp+0x20] (old)
-        code.AddRange(new byte[] { 0x4C, 0x8D, 0x4C, 0x24, 0x20 }); // lea r9, [rsp+0x20]
-        code.Add(0x48); code.Add(0xB8); code.AddRange(BitConverter.GetBytes(vpAddr));
-        code.Add(0xFF); code.Add(0xD0);                         // call rax
-
-        // --- cleanup + return ---
-        code.AddRange(new byte[] { 0x48, 0x83, 0xC4, 0x28 }); // add rsp, 0x28
-        code.Add(0x31); code.Add(0xC0);                        // xor eax, eax
-        code.Add(0xC3);                                         // ret
-
-        // Fix the LEA rsi displacement: RIP after LEA = leaPatch+7, target = code.Count
-        int disp = code.Count - (leaPatch + 7);
-        var db = BitConverter.GetBytes(disp);
-        code[leaPatch + 3] = db[0]; code[leaPatch + 4] = db[1];
-        code[leaPatch + 5] = db[2]; code[leaPatch + 6] = db[3];
-
-        // Append hook bytes (the data the shellcode copies to the target)
-        code.AddRange(hookBytes);
-
-        return code.ToArray();
     }
 
     private ulong AllocateNear(ulong target, int size)
