@@ -42,7 +42,7 @@ Get the `.zip` from **[GitHub Releases](../../releases)**, extract, and run `FH6
 - Drift Score 10x, Max Traction (x3 per-car grip), Torque 2x, Reduce Drag 0.5x
 
 ### Profile Values (runtime hooks — CRC-protected)
-- Credits, Wheelspins, Super Wheelspins, Skill Points, Drift Score Multiplier, No Skill Break, Sell Payout
+- Credits, Wheelspins, Super Wheelspins, Skill Points, Drift Score Multiplier, No Skill Break, Freeze AI, Sell Payout
 - **Instant Rewards** — writes wheelspin / super-wheelspin counts directly into the reward wallet (data write, no hooks)
 
 ### Quick Actions

@@ -45,10 +45,7 @@ public partial class UnlocksViewModel : PageViewModelBase
     [ObservableProperty] private bool _isDriftMultiOn;
     [ObservableProperty] private string _driftMultiText = "10";
     [ObservableProperty] private bool _isNoSkillBreakOn;
-
-    // --- Time of Day ---
-    [ObservableProperty] private bool _isTimeOfDayOn;
-    [ObservableProperty] private string _timeOfDayText = "12.0";
+    [ObservableProperty] private bool _isFreezeAIOn;
 
     // --- Season ---
     [ObservableProperty] private int _selectedSeason;
@@ -246,16 +243,13 @@ public partial class UnlocksViewModel : PageViewModelBase
         IsNoSkillBreakOn = _cheats.IsActive(RuntimeProfileFeature.NoSkillBreak);
     }
 
-    // ===== Time of Day =====
-    [RelayCommand] private void ToggleTimeOfDay()
+    // ===== Freeze AI =====
+    [RelayCommand] private void ToggleFreezeAI()
     {
-        var on = !_cheats.IsActive(RuntimeProfileFeature.TimeOfDay);
-        Toggle(RuntimeProfileFeature.TimeOfDay, on, ParseFloatAsIntBits(TimeOfDayText, 12f), "Time of Day");
-        IsTimeOfDayOn = _cheats.IsActive(RuntimeProfileFeature.TimeOfDay);
+        var on = !_cheats.IsActive(RuntimeProfileFeature.FreezeAI);
+        Toggle(RuntimeProfileFeature.FreezeAI, on, 0, "Freeze AI");
+        IsFreezeAIOn = _cheats.IsActive(RuntimeProfileFeature.FreezeAI);
     }
-    [RelayCommand] private void ApplyTimeOfDay()
-        => ApplyValue(RuntimeProfileFeature.TimeOfDay, ParseFloatAsIntBits(TimeOfDayText, 12f), "Time of Day");
-    [RelayCommand] private void SetTimeOfDay(string? a) { if (a is not null) { TimeOfDayText = a; if (IsTimeOfDayOn) ApplyTimeOfDay(); } }
 
     // ===== Season =====
     [RelayCommand]

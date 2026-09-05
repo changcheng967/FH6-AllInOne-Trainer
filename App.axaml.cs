@@ -29,6 +29,14 @@ public partial class App : Application
             {
                 DataContext = Services.GetRequiredService<MainWindowViewModel>()
             };
+            // Dispose singletons that own timers/handles so the process actually exits
+            // (the 2s game-poll timer otherwise keeps the CLR alive) and so active
+            // hooks get restored into the game before we close the process handle.
+            desktop.Exit += (_, _) =>
+            {
+                (Services.GetRequiredService<CheatService>() as IDisposable)?.Dispose();
+                (Services.GetRequiredService<GameProcessService>() as IDisposable)?.Dispose();
+            };
         }
         base.OnFrameworkInitializationCompleted();
     }

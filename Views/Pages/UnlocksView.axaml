@@ -184,29 +184,16 @@
                                       IsEnabled="{Binding CanToggle}"
                                       Command="{Binding ToggleNoSkillBreakCommand}" />
                     </Grid>
-                </StackPanel>
-            </Border>
 
-            <!-- Time of Day card -->
-            <Border Classes="card">
-                <StackPanel Spacing="10">
-                    <TextBlock Text="TIME OF DAY" Classes="section-header" />
-                    <TextBlock Classes="hint" TextWrapping="Wrap"
-                               Text="Freeze or set the in-game time. Enter a value from 0.0 to 24.0 (e.g. 12.0 = noon, 18.0 = sunset). Toggle ON to lock it." />
                     <Grid ColumnDefinitions="130,*,Auto" ColumnSpacing="8">
-                        <TextBlock Grid.Column="0" Text="Time (hours)" VerticalAlignment="Center" FontSize="12" />
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="3" VerticalAlignment="Center">
-                            <TextBox Text="{Binding TimeOfDayText}" Width="70" VerticalAlignment="Center" />
-                            <Button Classes="ghost-sm" Content="6" Command="{Binding SetTimeOfDayCommand}" CommandParameter="6" />
-                            <Button Classes="ghost-sm" Content="12" Command="{Binding SetTimeOfDayCommand}" CommandParameter="12" />
-                            <Button Classes="ghost-sm" Content="18" Command="{Binding SetTimeOfDayCommand}" CommandParameter="18" />
-                            <Button Classes="ghost-sm" Content="0" Command="{Binding SetTimeOfDayCommand}" CommandParameter="0" />
-                            <Button Classes="primary" Content="Set" Padding="8,4" FontSize="10" Command="{Binding ApplyTimeOfDayCommand}" />
-                        </StackPanel>
+                        <TextBlock Grid.Column="0" Text="Freeze AI" VerticalAlignment="Center" FontSize="12" />
+                        <TextBlock Grid.Column="1" Text="Stop AI cars from updating their velocity"
+                                   VerticalAlignment="Center" FontSize="11"
+                                   Foreground="{DynamicResource TextDim}" />
                         <ToggleSwitch Grid.Column="2" VerticalAlignment="Center"
-                                      IsChecked="{Binding IsTimeOfDayOn, Mode=OneWay}"
+                                      IsChecked="{Binding IsFreezeAIOn, Mode=OneWay}"
                                       IsEnabled="{Binding CanToggle}"
-                                      Command="{Binding ToggleTimeOfDayCommand}" />
+                                      Command="{Binding ToggleFreezeAICommand}" />
                     </Grid>
                 </StackPanel>
             </Border>
