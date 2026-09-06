@@ -268,6 +268,14 @@ public sealed class RuntimeHookEngine : IDisposable
 
         RestoreRuntimeProfileHooks();
 
+        // Reset per-process state — the season hook flag must not survive a game
+        // restart, or EnsureSeasonHook silently skips installation in the next
+        // game process and the entity is never captured (#195).
+        _seasonHookInstalled = false;
+        _seasonCaveAddr = 0;
+        _seasonEntityStorageAddr = 0;
+        _seasonEntityStorageAltAddr = 0;
+
         _preResolved = false;
         _preResolvedTargets.Clear();
 
@@ -286,11 +294,14 @@ public sealed class RuntimeHookEngine : IDisposable
     {
         lock (_lock)
         {
+            // If the game process is already gone there is nothing to restore into —
+            // the addresses belong to a dead address space. Just drop the registrations.
+            var alive = _process is { HasExited: false };
             foreach (var det in _hooks.Values)
             {
                 try
                 {
-                    if (_handle != IntPtr.Zero)
+                    if (_handle != IntPtr.Zero && alive)
                     {
                         WriteProtectedBytes(det.Address, det.Original);
                         if (det.DetourAddress != 0)
