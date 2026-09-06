@@ -1,7 +1,6 @@
 using System;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using FH6Mod.Cheats.Season;
 using FH6Mod.Cheats.Sql;
 using FH6Mod.Services;
 using Material.Icons;
@@ -28,9 +27,6 @@ public partial class DatabaseViewModel : PageViewModelBase
 
     [ObservableProperty] private bool _canToggle;
 
-    [ObservableProperty] private string _currentSeasonText = "Unknown";
-    [ObservableProperty] private bool _seasonAvailable;
-
     public DatabaseViewModel() : this(
         App.Services.GetRequiredService<CheatService>(),
         App.Services.GetRequiredService<GameProcessService>(),
@@ -53,15 +49,7 @@ public partial class DatabaseViewModel : PageViewModelBase
         {
             CanToggle = _game.IsAttached;
             if (!CanToggle)
-            {
                 StatusMessage = "FH6 is not running — start the game first.";
-                SeasonAvailable = false;
-                CurrentSeasonText = "Unknown";
-            }
-            else
-            {
-                RefreshSeason();
-            }
         });
     }
 
@@ -164,40 +152,5 @@ public partial class DatabaseViewModel : PageViewModelBase
             : _cheats.LastError;
         AutoClearStatus();
     }
-
-    private void RefreshSeason()
-    {
-        var s = _cheats.GetCurrentSeason();
-        if (s >= 0 && s <= 3)
-        {
-            CurrentSeasonText = SeasonChanger.SeasonName(s);
-            SeasonAvailable = true;
-        }
-        else
-        {
-            CurrentSeasonText = "Not loaded";
-            SeasonAvailable = false;
-        }
-    }
-
-    private void ApplySeason(int season, string label)
-    {
-        var ok = _cheats.SetSeason(season, out var err);
-        StatusIsError = !ok;
-        StatusMessage = ok ? $"Season set to {label}. Fast-travel or load a race to refresh visuals." : err;
-        if (ok) RefreshSeason();
-        AutoClearStatus();
-    }
-
-    [RelayCommand] private void SetSpring() => ApplySeason(0, "Spring");
-    [RelayCommand] private void SetSummer() => ApplySeason(1, "Summer");
-    [RelayCommand] private void SetAutumn() => ApplySeason(2, "Autumn");
-    [RelayCommand] private void SetWinter() => ApplySeason(3, "Winter");
-
-    [RelayCommand]
-    private void RefreshSeasonStatus()
-    {
-        if (!_game.IsAttached) { CurrentSeasonText = "Not loaded"; SeasonAvailable = false; return; }
-        RefreshSeason();
-    }
 }
+

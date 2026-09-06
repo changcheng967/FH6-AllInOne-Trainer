@@ -3,6 +3,7 @@ using System.Globalization;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using FH6Mod.Cheats.RuntimeHook;
+using FH6Mod.Cheats.Season;
 using FH6Mod.Cheats.Sql;
 using FH6Mod.Services;
 using Material.Icons;
@@ -49,6 +50,8 @@ public partial class UnlocksViewModel : PageViewModelBase
 
     // --- Season ---
     [ObservableProperty] private int _selectedSeason;
+    [ObservableProperty] private string _currentSeasonText = "Unknown";
+    [ObservableProperty] private bool _seasonAvailable;
 
     // --- Instant Rewards ---
     [ObservableProperty] private string _grantAmountText = "100";
@@ -66,6 +69,7 @@ public partial class UnlocksViewModel : PageViewModelBase
         _game.StatusChanged += OnGameStatusChanged;
         _log.Changed += OnLogChanged;
         CanToggle = _game.IsAttached;
+        if (CanToggle) RefreshSeason();
     }
 
     private void OnGameStatusChanged()
@@ -74,7 +78,15 @@ public partial class UnlocksViewModel : PageViewModelBase
         {
             CanToggle = _game.IsAttached;
             if (!CanToggle)
+            {
                 StatusMessage = "FH6 is not running — start the game first.";
+                SeasonAvailable = false;
+                CurrentSeasonText = "Unknown";
+            }
+            else
+            {
+                RefreshSeason();
+            }
         });
     }
 
@@ -264,7 +276,30 @@ public partial class UnlocksViewModel : PageViewModelBase
     private void SetSeasonValue(int season, string label)
     {
         var ok = _cheats.SetSeason(season, out var err);
-        SetStatus(ok, ok ? $"Season set to {label}." : err);
+        SetStatus(ok, ok ? $"Season set to {label}. Fast-travel or load a race to refresh visuals." : err);
+        if (ok) RefreshSeason();
+    }
+
+    private void RefreshSeason()
+    {
+        var s = _cheats.GetCurrentSeason();
+        if (s is >= 0 and <= 3)
+        {
+            CurrentSeasonText = SeasonChanger.SeasonName(s);
+            SeasonAvailable = true;
+        }
+        else
+        {
+            CurrentSeasonText = "Not loaded";
+            SeasonAvailable = false;
+        }
+    }
+
+    [RelayCommand]
+    private void RefreshSeasonStatus()
+    {
+        if (!_game.IsAttached) { CurrentSeasonText = "Not loaded"; SeasonAvailable = false; return; }
+        RefreshSeason();
     }
 
     // ===== Instant reward grants (call the game's grant function — no scanning) =====

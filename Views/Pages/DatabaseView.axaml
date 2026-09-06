@@ -1,7 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:FH6Mod.ViewModels.Pages"
-             xmlns:mi="clr-namespace:Material.Icons.Avalonia;assembly=Material.Icons.Avalonia"
              x:Class="FH6Mod.Views.Pages.DatabaseView"
              x:DataType="vm:DatabaseViewModel">
 
@@ -127,88 +126,6 @@
                                 HorizontalAlignment="Left" IsEnabled="{Binding CanToggle}"
                                 Command="{Binding FullAutoshowCommand}" />
                     </Grid>
-                </StackPanel>
-            </Border>
-
-            <!-- Season card with visual selectors -->
-            <Border Classes="card">
-                <StackPanel Spacing="10">
-                    <TextBlock Text="SEASON" Classes="section-header" />
-
-                    <TextBlock Margin="0,-4,0,0">
-                        <Run Text="Current: " FontSize="12" Foreground="{DynamicResource TextSecondary}" />
-                        <Run Text="{Binding CurrentSeasonText}" FontSize="12" FontWeight="SemiBold"
-                             Foreground="{DynamicResource AccentBrush}" />
-                    </TextBlock>
-
-                    <!-- Season selector cards -->
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <!-- Spring -->
-                        <Button Padding="0" BorderThickness="0" Background="Transparent"
-                                Command="{Binding SetSpringCommand}" IsEnabled="{Binding CanToggle}">
-                            <Border Width="88" Height="56" CornerRadius="8"
-                                    Background="{DynamicResource SeasonSpringBg}"
-                                    BorderBrush="{DynamicResource SeasonSpring}" BorderThickness="1">
-                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
-                                    <mi:MaterialIcon Kind="FlowerTulipOutline" Width="20" Height="20"
-                                                     Foreground="{DynamicResource SeasonSpring}" />
-                                    <TextBlock Text="Spring" FontSize="10" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SeasonSpring}"
-                                               HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </Border>
-                        </Button>
-
-                        <!-- Summer -->
-                        <Button Padding="0" BorderThickness="0" Background="Transparent"
-                                Command="{Binding SetSummerCommand}" IsEnabled="{Binding CanToggle}">
-                            <Border Width="88" Height="56" CornerRadius="8"
-                                    Background="{DynamicResource SeasonSummerBg}"
-                                    BorderBrush="{DynamicResource SeasonSummer}" BorderThickness="1">
-                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
-                                    <mi:MaterialIcon Kind="WhiteBalanceSunny" Width="20" Height="20"
-                                                     Foreground="{DynamicResource SeasonSummer}" />
-                                    <TextBlock Text="Summer" FontSize="10" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SeasonSummer}"
-                                               HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </Border>
-                        </Button>
-
-                        <!-- Autumn -->
-                        <Button Padding="0" BorderThickness="0" Background="Transparent"
-                                Command="{Binding SetAutumnCommand}" IsEnabled="{Binding CanToggle}">
-                            <Border Width="88" Height="56" CornerRadius="8"
-                                    Background="{DynamicResource SeasonAutumnBg}"
-                                    BorderBrush="{DynamicResource SeasonAutumn}" BorderThickness="1">
-                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
-                                    <mi:MaterialIcon Kind="Leaf" Width="20" Height="20"
-                                                     Foreground="{DynamicResource SeasonAutumn}" />
-                                    <TextBlock Text="Autumn" FontSize="10" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SeasonAutumn}"
-                                               HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </Border>
-                        </Button>
-
-                        <!-- Winter -->
-                        <Button Padding="0" BorderThickness="0" Background="Transparent"
-                                Command="{Binding SetWinterCommand}" IsEnabled="{Binding CanToggle}">
-                            <Border Width="88" Height="56" CornerRadius="8"
-                                    Background="{DynamicResource SeasonWinterBg}"
-                                    BorderBrush="{DynamicResource SeasonWinter}" BorderThickness="1">
-                                <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="2">
-                                    <mi:MaterialIcon Kind="Snowflake" Width="20" Height="20"
-                                                     Foreground="{DynamicResource SeasonWinter}" />
-                                    <TextBlock Text="Winter" FontSize="10" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource SeasonWinter}"
-                                               HorizontalAlignment="Center" />
-                                </StackPanel>
-                            </Border>
-                        </Button>
-                    </StackPanel>
-
-                    <TextBlock Classes="dim" Text="Fast-travel or load a race to refresh visuals." />
                 </StackPanel>
             </Border>
 

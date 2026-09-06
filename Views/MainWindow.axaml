@@ -62,24 +62,48 @@
         </Border>
 
         <!-- Content area -->
-        <Grid Grid.Column="1" RowDefinitions="Auto,*">
+        <Grid Grid.Column="1" RowDefinitions="Auto,Auto,*">
 
             <!-- Header bar -->
             <Border Grid.Row="0" Padding="20,12"
                     Background="{DynamicResource Surface0Brush}"
                     BorderBrush="{DynamicResource SurfaceBorderBrush}" BorderThickness="0,0,0,1">
-                <Grid ColumnDefinitions="*,Auto">
-                    <StackPanel Grid.Column="0" Spacing="2">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                    <Panel Grid.Column="0" VerticalAlignment="Center">
+                        <mi:MaterialIcon Kind="LockOpenVariantOutline" Width="22" Height="22"
+                                         Foreground="{DynamicResource AccentBrush}"
+                                         IsVisible="{Binding IsUnlocksPage}" />
+                        <mi:MaterialIcon Kind="DatabaseEditOutline" Width="22" Height="22"
+                                         Foreground="{DynamicResource AccentBrush}"
+                                         IsVisible="{Binding IsDatabasePage}" />
+                        <mi:MaterialIcon Kind="CogOutline" Width="22" Height="22"
+                                         Foreground="{DynamicResource AccentBrush}"
+                                         IsVisible="{Binding IsSettingsPage}" />
+                    </Panel>
+                    <StackPanel Grid.Column="1" Spacing="2">
                         <TextBlock Text="{Binding PageTitleText}" Classes="page-title" />
                         <TextBlock Text="{Binding PageSubtitleText}" Classes="page-subtitle" />
                     </StackPanel>
-                    <TextBlock Grid.Column="1" Text="{Binding CurrentVersionText}"
+                    <TextBlock Grid.Column="2" Text="{Binding CurrentVersionText}"
                                Classes="dim" VerticalAlignment="Center" />
                 </Grid>
             </Border>
 
+            <!-- Not-attached banner -->
+            <Border Grid.Row="1" IsVisible="{Binding !IsGameAttached}"
+                    Background="#22FFB347" BorderBrush="{DynamicResource StatusWarn}"
+                    BorderThickness="0,0,0,1" Padding="20,8">
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <mi:MaterialIcon Kind="AlertCircleOutline" Width="16" Height="16"
+                                     Foreground="{DynamicResource StatusWarn}" VerticalAlignment="Center" />
+                    <TextBlock Text="Start Forza Horizon 6 and load into the world — cheats unlock once the game is running."
+                               FontSize="12" VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextPrimary}" />
+                </StackPanel>
+            </Border>
+
             <!-- Page host — one page visible at a time -->
-            <Grid Grid.Row="1">
+            <Grid Grid.Row="2">
                 <Panel IsVisible="{Binding IsUnlocksPage}">
                     <pages:UnlocksView DataContext="{Binding UnlocksPage}" />
                 </Panel>
