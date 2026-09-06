@@ -228,7 +228,7 @@
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
                         <TextBlock Grid.Column="0" Text="Max Traction (Grip)" VerticalAlignment="Center" FontSize="12" />
                         <Button Grid.Column="1" Classes="ghost-sm" Content="Apply"
-                                ToolTip.Tip="Sets Traction_Road=10.0 and wet friction scales to 5.0"
+                                ToolTip.Tip="Triples each car's own grip (missing values default to 1.0), wet friction x1.5"
                                 IsEnabled="{Binding CanToggle}"
                                 Command="{Binding MaxTractionCommand}" />
                     </Grid>
