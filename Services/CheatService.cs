@@ -84,7 +84,9 @@ public sealed class CheatService : IDisposable
         }
         if (_engine.IsAttached && _lastAttachedPid == _game.Pid) return true;
 
-        if (_engine.IsAttached) { _engine.Detach(); _active.Clear(); }
+        // The engine self-cleans stale state from a previous game process inside
+        // Attach(); here we only drop our own toggle bookkeeping when the PID changes.
+        var previousPid = _lastAttachedPid;
 
         _log.Info($"Attaching to PID {_game.Pid}...");
         if (!_engine.Attach(_game.Pid!.Value))
@@ -93,6 +95,7 @@ public sealed class CheatService : IDisposable
             _log.Error("Attach failed — OpenProcess returned null. Run as admin?");
             return false;
         }
+        if (previousPid != _game.Pid) _active.Clear();
         _lastAttachedPid = _game.Pid!.Value;
         _log.Info($"Attached OK — engine ready");
 

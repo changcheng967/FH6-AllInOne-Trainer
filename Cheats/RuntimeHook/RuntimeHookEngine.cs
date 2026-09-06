@@ -212,6 +212,15 @@ public sealed class RuntimeHookEngine : IDisposable
 
     public bool Attach(int pid)
     {
+        // Full reset of any previous session's state. Hooks, caves, the CRC pointer
+        // and the season-capture flag all belong to the OLD process address space.
+        // A game that dies and relaunches between our 2s polls never triggers the
+        // game-lost cleanup, so Attach must self-clean — otherwise stale state
+        // (e.g. the season hook flag, or _hooks entries) points into the wrong
+        // process and season clicks fail forever (#195).
+        if (_handle != IntPtr.Zero)
+            Detach();
+
         Native.EnableDebugPrivilege();
         var h = Native.OpenProcess(Native.PROCESS_ALL_ACCESS, false, (uint)pid);
         if (h == IntPtr.Zero)
@@ -709,6 +718,12 @@ public sealed class RuntimeHookEngine : IDisposable
     {
         if (!_crcBypassActive || _crcFunctionPointerAddress == 0 || _crcOriginalPointer == 0 || _handle == IntPtr.Zero)
             return;
+        // Nothing to restore into a dead process — just drop the state.
+        if (_process is not { HasExited: false })
+        {
+            _crcBypassActive = false;
+            return;
+        }
         try { WriteUInt64(_crcFunctionPointerAddress, _crcOriginalPointer); }
         catch (Exception ex) { L($"CRC pointer restore failed: {ex.Message}"); }
         _crcBypassActive = false;
