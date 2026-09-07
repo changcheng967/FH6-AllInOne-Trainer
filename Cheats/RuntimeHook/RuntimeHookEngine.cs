@@ -160,8 +160,7 @@ public sealed class RuntimeHookEngine : IDisposable
     public bool   IsExecutableAddressPublic(ulong addr) => IsExecutableAddress(addr);
 
     /// <summary>
-    /// Returns the captured season entity pointer (RDI slot), or null if not yet captured.
-    /// The hook fires when the game calls SeasonSettings::Loaded during initialization.
+    /// Returns the captured season entity pointer (RCX at the season getter), or null.
     /// </summary>
     public ulong? GetCapturedSeasonEntity()
     {
@@ -192,10 +191,6 @@ public sealed class RuntimeHookEngine : IDisposable
         error = null;
         if (_seasonHookInstalled) return true;
         if (!IsAttached) { error = "Not attached."; return false; }
-        // Arm the integrity bypass first, exactly like the profile hooks do: on
-        // builds with the periodic code check, a .text patch without the bypass
-        // gets the game terminated within a second (#197 — Credits (bypass-armed)
-        // survives the same builds where Season died without it).
         try { EnsureCrcBypass(); }
         catch (Exception ex) { error = $"CRC bypass: {ex.Message}"; return false; }
         try
@@ -964,105 +959,64 @@ public sealed class RuntimeHookEngine : IDisposable
     {
         if (_seasonHookInstalled) return;
 
-        // Anchor: the log call that references "SeasonSettings Loaded". The site is
-        // found with a 24-byte structured signature around the LEA (telemetry check,
-        // test al,al / jne, LEA rdx,[rip+string], mov rcx,rdi, call logger) instead
-        // of a bare 7-byte LEA byte-scan — a bare scan can match bytes in the middle
-        // of an unrelated hot instruction on a drifted build, and patching those
-        // kills the game within a second (#197, build 430.771). The wildcarded LEA
-        // displacement must still resolve to the string, so the anchor is verified
-        // structurally AND semantically.
-        var needle = System.Text.Encoding.ASCII.GetBytes("SeasonSettings Loaded");
-        int stringOff = -1;
-        for (int i = 0; i < moduleBytes.Length - needle.Length; i++)
+        // Anchor: the season getter itself — movss xmm0,[rcx+0x174]; ret.
+        // Every code path that reads the season value goes through this single
+        // 9-byte function, so the entity pointer (RCX) is captured on every read
+        // (game HUD, world state, weather — all call it frequently). This replaces
+        // the old one-shot "SeasonSettings Loaded" hook which only fired at boot
+        // and could never capture on a mid-session attach (#197).
+        var sig = new byte[] { 0xF3, 0x0F, 0x10, 0x81, 0x74, 0x01, 0x00, 0x00, 0xC3 };
+        int match = -1, count = 0;
+        for (int i = 0x1000; i + sig.Length < moduleBytes.Length; i++)
         {
-            bool match = true;
-            for (int j = 0; j < needle.Length; j++)
-            {
-                if (moduleBytes[i + j] != needle[j]) { match = false; break; }
-            }
-            if (match) { stringOff = i; break; }
+            bool ok = true;
+            for (int j = 0; j < sig.Length; j++)
+                if (moduleBytes[i + j] != sig[j]) { ok = false; break; }
+            if (ok) { count++; if (match < 0) match = i; }
         }
-        if (stringOff < 0) { L("Season: string not found"); return; }
-
-        const string Sig = "E8 ? ? ? ? 84 C0 75 ? 48 8D 15 ? ? ? ? 48 8B CF E8 ? ? ? ?";
-        var pattern = Pattern.Parse(Sig);
-        ulong hookRVA = 0;
-        int verified = 0, rawMatches = 0;
-        foreach (var off in Pattern.FindAll(moduleBytes, pattern, 16))
+        if (count != 1)
         {
-            rawMatches++;
-            var disp = BitConverter.ToInt32(moduleBytes, off + 12);
-            if (off + 16 + disp == stringOff)
-            {
-                verified++;
-                hookRVA = (ulong)(off + 9);
-            }
-        }
-        if (verified != 1)
-        {
-            L($"Season: refusing to hook — {verified} verified signature matches (raw {rawMatches}). Build not recognized.");
+            L($"Season: refusing to hook — expected 1 getter match, found {count}");
             return;
         }
 
-        var hookAddr = _mainBase + hookRVA;
-        L($"Season: hook target at 0x{hookAddr:X} (structured signature, string-verified)");
+        var hookAddr = _mainBase + (ulong)match;
+        L($"Season: hook target at 0x{hookAddr:X} (season getter, every-read capture)");
 
-        // 3. Allocate code cave (64 bytes: code + captured pointer storage)
-        const int caveSize = 64;
-        const int storageOffset = 0x30;  // RDI slot (decompile assumption: param_1 moved to RDI)
-        const int storageAltOffset = 0x38; // RCX slot (x64 "this" register)
+        // Cave: save RCX (the season entity), re-execute the movss, ret.
+        // +0x00: MOV [rip+disp],RCX  (7B; storage at cave+0x10)
+        // +0x07: movss xmm0,[rcx+0x174] (8B, original)
+        // +0x0F: ret (1B, original)
+        const int caveSize = 0x20;
+        const int storageOffset = 0x10;
         var caveAddr = AllocateNear(hookAddr, caveSize);
         _seasonCaveAddr = caveAddr;
         _seasonEntityStorageAddr = caveAddr + storageOffset;
-        _seasonEntityStorageAltAddr = caveAddr + storageAltOffset;
 
-        // 4. Build code cave:
-        //    +0x00: MOV [rip+disp], RDI  (7 bytes) — save RDI (decompile param_1)
-        //    +0x07: MOV [rip+disp], RCX  (7 bytes) — save RCX (x64 "this")
-        //    +0x0E: LEA RDX,[rip+disp]   (7 bytes) — original LEA with recomputed disp
-        //    +0x15: JMP back             (5 bytes)
-        //    +0x30: RDI slot (8 bytes)   +0x38: RCX slot (8 bytes)
         var cave = new byte[caveSize];
+        cave[0] = 0x48; cave[1] = 0x89; cave[2] = 0x0D; // MOV [rip+disp32],RCX
+        BitConverter.GetBytes(storageOffset - 7).CopyTo(cave, 3);
 
-        // MOV [rip+0x29], RDI → rip after = cave+7; 0x30-0x07 = 0x29
-        cave[0] = 0x48; cave[1] = 0x89; cave[2] = 0x3D;
-        cave[3] = (byte)(storageOffset - 7);
-        cave[4] = 0x00; cave[5] = 0x00; cave[6] = 0x00;
+        // re-execute original: movss xmm0,[rcx+0x174]
+        cave[7] = 0xF3; cave[8] = 0x0F; cave[9] = 0x10; cave[10] = 0x81;
+        cave[11] = 0x74; cave[12] = 0x01; cave[13] = 0x00; cave[14] = 0x00;
 
-        // MOV [rip+0x2A], RCX → rip after = cave+14; 0x38-0x0E = 0x2A
-        cave[7] = 0x48; cave[8] = 0x89; cave[9] = 0x0D;
-        BitConverter.GetBytes(storageAltOffset - 14).CopyTo(cave, 10);
-
-        // LEA RDX,[rip+newDisp] — recomputed displacement for the moved instruction
-        int origDisp = BitConverter.ToInt32(moduleBytes, (int)hookRVA + 3);
-        ulong stringTarget = hookAddr + 7 + (ulong)(long)origDisp;
-        long newDisp = (long)(stringTarget - (caveAddr + 21)); // rip after LEA = cave+14+7=21
-        cave[14] = 0x48; cave[15] = 0x8D; cave[16] = 0x15;
-        BitConverter.GetBytes((int)newDisp).CopyTo(cave, 17);
-
-        // JMP back to hookAddr + 7 (resume after the original LEA)
-        var jmpBack = BuildRelativeJump(caveAddr + 21, hookAddr + 7, 5);
-        Buffer.BlockCopy(jmpBack, 0, cave, 21, jmpBack.Length);
+        // ret
+        cave[15] = 0xC3;
 
         WriteBytes(caveAddr, cave);
 
-        // 5. Install hook: overwrite original LEA with JMP to cave
-        var hookPatch = BuildRelativeJump(hookAddr, caveAddr, 7);
-
-        // Read original bytes before overwriting
-        var originalLea = ReadBytes(hookAddr, 7);
-
+        var hookPatch = BuildRelativeJump(hookAddr, caveAddr, 9);
+        var original = ReadBytes(hookAddr, 9);
         WriteProtectedBytes(hookAddr, hookPatch);
 
-        // Register as a detour so the CRC timer restores/re-applies it
         _hooks["SeasonCapture"] = new RuntimeDetour
         {
             Name = "SeasonCapture",
             Address = hookAddr,
             DetourAddress = caveAddr,
             Size = caveSize,
-            Original = originalLea,
+            Original = original,
             Patch = hookPatch,
         };
 

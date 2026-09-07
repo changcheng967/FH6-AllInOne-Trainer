@@ -92,7 +92,6 @@ public partial class DatabaseViewModel : PageViewModelBase
         TryRun(SqlFeature.AutoshowUnlock, "Autoshow Unlock");
         TryRun(SqlFeature.ClearNewTag, "Clear NEW Tags");
         TryRun(SqlFeature.AddAllCars, "Add All Cars");
-        TryRun(SqlFeature.FreeUpgrades, "Free Upgrades");
         TryRun(SqlFeature.FreeWheels, "Free Wheels");
         TryRun(SqlFeature.UnlockUpgradePresets, "Upgrade Presets");
         TryRun(SqlFeature.FullAutoshow, "Full Autoshow");
