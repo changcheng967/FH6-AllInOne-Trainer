@@ -965,7 +965,8 @@ public sealed class RuntimeHookEngine : IDisposable
         // (game HUD, world state, weather — all call it frequently). This replaces
         // the old one-shot "SeasonSettings Loaded" hook which only fired at boot
         // and could never capture on a mid-session attach (#197).
-        var sig = new byte[] { 0xF3, 0x0F, 0x10, 0x81, 0x74, 0x01, 0x00, 0x00, 0xC3 };
+        var sig = new byte[] { 0xF3, 0x0F, 0x10, 0x81, 0x74, 0x01, 0x00, 0x00, 0xC3,
+                               0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC };
         int match = -1, count = 0;
         for (int i = 0x1000; i + sig.Length < moduleBytes.Length; i++)
         {
