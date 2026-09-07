@@ -303,6 +303,21 @@
                 </StackPanel>
             </Border>
 
+            <!-- XP grant card -->
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="XP GRANT (EXPERIMENTAL)" Classes="section-header" />
+                    <TextBlock Classes="hint" TextWrapping="Wrap"
+                               Text="Adds XP through the game's own progression system. First use: after attaching, earn a little XP in game (any skill or race) so the trainer can find the XP system, then press Grant." />
+                    <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="8">
+                        <TextBlock Grid.Column="0" Text="Amount" VerticalAlignment="Center" FontSize="12" />
+                        <TextBox Grid.Column="1" Text="{Binding XpAmountText}" Width="110" HorizontalAlignment="Left" />
+                        <Button Grid.Column="2" Classes="primary" Content="Grant XP" Padding="14,6"
+                                Command="{Binding GrantXpCommand}" IsEnabled="{Binding CanToggle}" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+
             <!-- Log card -->
             <Border Classes="card">
                 <StackPanel Spacing="6">

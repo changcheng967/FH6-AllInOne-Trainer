@@ -5,6 +5,7 @@ using FH6Mod.Cheats.RuntimeHook;
 using FH6Mod.Cheats.Season;
 using FH6Mod.Cheats.Sql;
 using FH6Mod.Cheats.Weather;
+using FH6Mod.Cheats.Xp;
 
 namespace FH6Mod.Services;
 
@@ -16,6 +17,7 @@ public sealed class CheatService : IDisposable
     private readonly SqlExecutor _sql;
     private readonly SeasonChanger _season;
     private readonly WeatherChanger _weather;
+    private readonly XpCaller _xp;
     private readonly RewardCaller _reward;
     private readonly HashSet<RuntimeProfileFeature> _active = new();
     private int _lastAttachedPid;
@@ -34,6 +36,7 @@ public sealed class CheatService : IDisposable
         _sql = new SqlExecutor(_engine);
         _season = new SeasonChanger(_engine);
         _weather = new WeatherChanger(_engine);
+        _xp = new XpCaller(_engine);
         _reward = new RewardCaller(_engine);
         _engine.SetLogCallback(msg => _log.Info(msg));
         _game.StatusChanged += OnGameStatusChanged;
@@ -241,6 +244,31 @@ public sealed class CheatService : IDisposable
             return false;
         }
 
+        LastError = null;
+        return true;
+    }
+
+    // ===== XP grant (game's own AddTotalXP via shellcode) =====
+
+    public bool GrantXp(uint amount, out string? error)
+    {
+        error = null;
+        if (!EnsureAttached()) { error = "Not attached."; return false; }
+        // Install the capture hook on first use; the owner arrives on the next
+        // natural XP gain (any skill chain / race reward).
+        if (!_engine.EnsureXpHook(out var hookErr))
+        {
+            error = $"XP hook: {hookErr}";
+            _log.Error(error);
+            return false;
+        }
+        if (!_xp.Grant(amount, out var err))
+        {
+            LastError = err;
+            _log.Error($"XP grant: {err}");
+            return false;
+        }
+        _log.Info($"Granted {amount} XP (game's own AddTotalXP path)");
         LastError = null;
         return true;
     }

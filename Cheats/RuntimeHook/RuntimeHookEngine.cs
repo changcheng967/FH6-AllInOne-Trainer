@@ -27,6 +27,12 @@ public sealed class RuntimeHookEngine : IDisposable
     // so the entity pointer is captured as soon as the hook is installed)
     private ulong _weatherEntityStorageAddr;
     private bool _weatherHookInstalled;
+
+    // XP capture hook: AddTotalXP(owner, amount) is called on every natural XP
+    // gain; hooking its entry captures the progression owner pointer.
+    private ulong _xpOwnerStorageAddr;
+    private ulong _xpAddFunctionAddr;
+    private bool _xpHookInstalled;
     private readonly Dictionary<string, ulong> _preResolvedTargets = new(StringComparer.OrdinalIgnoreCase);
     private bool _preResolved;
 
@@ -200,6 +206,99 @@ public sealed class RuntimeHookEngine : IDisposable
             return false;
         }
     }
+    /// <summary>
+    /// Returns the captured XP progression owner (RCX at AddTotalXP), or null.
+    /// </summary>
+    public ulong? GetCapturedXpOwner()
+    {
+        if (_xpOwnerStorageAddr == 0) return null;
+        var ptr = ReadUInt64(_xpOwnerStorageAddr);
+        return ptr != 0 ? ptr : null;
+    }
+
+    /// <summary>Address of the game's AddTotalXP(owner, amount) — for shellcode calls.</summary>
+    public ulong XpAddFunction => _xpAddFunctionAddr;
+
+    public bool EnsureXpHook(out string? error)
+    {
+        error = null;
+        if (_xpHookInstalled) return true;
+        if (!IsAttached) { error = "Not attached."; return false; }
+        try
+        {
+            var bytes = ReadBytes(_mainBase, _mainSize);
+            if (bytes.Length == 0) { error = "Could not read main module."; return false; }
+            InstallXpHook(bytes);
+            if (!_xpHookInstalled) { error = "AddTotalXP site not found in this build."; return false; }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"XP hook install failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    private void InstallXpHook(byte[] moduleBytes)
+    {
+        if (_xpHookInstalled) return;
+
+        // AddTotalXP prologue; unique in v379/v382/v403. lea disp wildcarded.
+        var sigStr = "48 89 5C 24 10 48 89 74 24 18 57 48 81 EC 90 00 00 00 8B FA 48 8B F1 " +
+                     "48 8B 59 58 45 33 C9 41 B8 20 00 00 00 48 8D 15 ? ? ? ? 48 8D 4C 24 38";
+        var pattern = Pattern.Parse(sigStr);
+        int match = -1, count = 0;
+        foreach (var off in Pattern.FindAll(moduleBytes, pattern, 16))
+        {
+            count++;
+            if (match < 0) match = off;
+        }
+        if (count != 1)
+        {
+            L($"XP: refusing to hook — expected 1 AddTotalXP match, found {count}");
+            return;
+        }
+
+        var hookAddr = _mainBase + (ulong)match;
+        _xpAddFunctionAddr = hookAddr;
+        L($"XP: AddTotalXP at 0x{hookAddr:X}");
+
+        // Original first instruction is exactly 5 bytes (mov [rsp+0x10],rbx).
+        // Cave: save RCX (the owner), re-execute it, jump back.
+        const int caveSize = 0x20;
+        const int storageOffset = 0x18;
+        var caveAddr = AllocateNear(hookAddr, caveSize);
+        var cave = new byte[caveSize];
+
+        cave[0] = 0x48; cave[1] = 0x89; cave[2] = 0x0D; // MOV [rip+disp32],RCX
+        BitConverter.GetBytes(storageOffset - 7).CopyTo(cave, 3);
+
+        cave[7] = 0x48; cave[8] = 0x89; cave[9] = 0x5C; cave[10] = 0x24; cave[11] = 0x10; // mov [rsp+0x10],rbx
+
+        var jmpBack = BuildRelativeJump(caveAddr + 12, hookAddr + 5, 5);
+        Buffer.BlockCopy(jmpBack, 0, cave, 12, 5);
+
+        WriteBytes(caveAddr, cave);
+        _xpOwnerStorageAddr = caveAddr + storageOffset;
+
+        var hookPatch = BuildRelativeJump(hookAddr, caveAddr, 5);
+        var original = ReadBytes(hookAddr, 5);
+        WriteProtectedBytes(hookAddr, hookPatch);
+
+        _hooks["XpCapture"] = new RuntimeDetour
+        {
+            Name = "XpCapture",
+            Address = hookAddr,
+            DetourAddress = caveAddr,
+            Size = caveSize,
+            Original = original,
+            Patch = hookPatch,
+        };
+
+        _xpHookInstalled = true;
+        L($"XP hook installed. cave=0x{caveAddr:X}, owner-storage=0x{_xpOwnerStorageAddr:X}");
+    }
+
     public bool   IsAddressHooked(ulong addr) => _hookedAddresses.Contains(addr);
 
     /// <summary>
@@ -394,6 +493,9 @@ public sealed class RuntimeHookEngine : IDisposable
         _seasonEntityStorageAltAddr = 0;
         _weatherHookInstalled = false;
         _weatherEntityStorageAddr = 0;
+        _xpHookInstalled = false;
+        _xpOwnerStorageAddr = 0;
+        _xpAddFunctionAddr = 0;
 
         _preResolved = false;
         _preResolvedTargets.Clear();

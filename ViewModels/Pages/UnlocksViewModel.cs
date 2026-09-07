@@ -60,6 +60,9 @@ public partial class UnlocksViewModel : PageViewModelBase
     [ObservableProperty] private string _atmosphereText = "0.00";
     [ObservableProperty] private string _windText = "0.00";
 
+    // --- XP ---
+    [ObservableProperty] private string _xpAmountText = "100000";
+
     // --- Instant Rewards ---
     [ObservableProperty] private string _grantAmountText = "100";
     [ObservableProperty] private string _currentRewardsText = "Current counts appear after first use.";
@@ -344,6 +347,20 @@ public partial class UnlocksViewModel : PageViewModelBase
             ParseF(AtmosphereText, 0f), ParseF(WindText, 0f), out var err);
         SetStatus(ok, ok ? "Weather applied." : err);
         if (ok) ReadWeather();
+    }
+
+    // ===== XP grant =====
+    [RelayCommand]
+    private void GrantXp()
+    {
+        if (!CanToggle) { SetStatus(false, "FH6 is not running."); return; }
+        if (!uint.TryParse(XpAmountText, out var amount) || amount == 0)
+        {
+            SetStatus(false, "Enter a valid XP amount.");
+            return;
+        }
+        var ok = _cheats.GrantXp(amount, out var err);
+        SetStatus(ok, ok ? $"Granted {amount} XP — level-ups and notifications follow the game's own path." : err);
     }
 
     // ===== Instant reward grants (call the game's grant function — no scanning) =====
