@@ -186,6 +186,10 @@ public sealed class CheatService : IDisposable
     public bool GrantWheelspins(int amount) => GrantReward(0, amount, "Wheelspins");
     public bool GrantSuperWheelspins(int amount) => GrantReward(1, amount, "Super Wheelspins");
 
+    /// <summary>Current wallet counts, or null when the wallet is not resolved on this build.</summary>
+    public (int Wheelspins, int SuperWheelspins)? GetCurrentRewards()
+        => _engine.IsAttached ? _reward.GetCurrentRewards() : null;
+
     public List<(RuntimeProfileFeature Feature, bool Found, string Detail)> ScanAllSignatures()
     {
         if (!EnsureAttached()) return Enum.GetValues<RuntimeProfileFeature>()

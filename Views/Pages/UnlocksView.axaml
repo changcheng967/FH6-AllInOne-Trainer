@@ -42,6 +42,7 @@
                     <TextBlock Text="INSTANT REWARDS (AUTO)" Classes="section-header" />
                     <TextBlock Classes="hint" TextWrapping="Wrap"
                                Text="Finds the reward wallet in the game's memory (one safe function call) then sets the value directly (data write, no hooks, no crash). Enter the count you want and click." />
+                    <TextBlock Text="{Binding CurrentRewardsText}" Classes="dim" />
                     <Grid ColumnDefinitions="Auto,*,Auto,Auto" ColumnSpacing="8">
                         <TextBlock Grid.Column="0" Text="Amount" VerticalAlignment="Center" FontSize="12" />
                         <TextBox Grid.Column="1" Text="{Binding GrantAmountText}" />

@@ -45,11 +45,50 @@ internal sealed class RewardCaller
             _engine.LogPublic($"RewardCaller: wallet found @ 0x{_cachedWallet:X}");
         }
 
+        if (!ValidateCell(type, out var old, out error))
+        {
+            _cachedWallet = 0; // layout does not match this build — re-resolve next time
+            return false;
+        }
+
         // Data-write the value (plaintext int32, crash-free — same mechanism as SQL/Finder).
         var offset = type == 0 ? OFF_WHEELSPINS : OFF_SUPER_WHEELSPINS;
         var addr = _cachedWallet + (ulong)offset;
         _engine.WriteInt32Public(addr, value);
-        _engine.LogPublic($"RewardCaller: set [wallet+0x{offset:X}] = {value} (addr 0x{addr:X})");
+        _engine.LogPublic($"RewardCaller: set [wallet+0x{offset:X}] = {value} (was {old}, addr 0x{addr:X})");
+        return true;
+    }
+
+    /// <summary>
+    /// Reads the current wheelspin / super-wheelspin counts. Returns null when the
+    /// wallet is not resolved yet or its layout does not validate on this build.
+    /// </summary>
+    public (int Wheelspins, int SuperWheelspins)? GetCurrentRewards()
+    {
+        if (_cachedWallet == 0) return null;
+        if (!ValidateCell(0, out var ws, out _) || !ValidateCell(1, out var sws, out _))
+            return null;
+        return (ws, sws);
+    }
+
+    /// <summary>
+    /// A wallet cell is only trusted when its guard pointer (value offset + 8) is a
+    /// plausible heap pointer — the same defence the season capture uses. Wrong-build
+    /// offsets fail here instead of silently writing garbage.
+    /// </summary>
+    private bool ValidateCell(int type, out int currentValue, out string? error)
+    {
+        error = null;
+        currentValue = 0;
+        var offset = type == 0 ? OFF_WHEELSPINS : OFF_SUPER_WHEELSPINS;
+        var guard = _engine.ReadUInt64Public(_cachedWallet + (ulong)offset + 8);
+        if (guard < 0x10000 || guard > 0x0000_7FFF_FFFF_FFFF)
+        {
+            error = $"wallet+0x{offset:X} layout invalid on this build (guard=0x{guard:X}) — Instant Rewards needs an update for this game version.";
+            _engine.LogPublic("RewardCaller: " + error);
+            return false;
+        }
+        currentValue = _engine.ReadInt32Public(_cachedWallet + (ulong)offset);
         return true;
     }
 

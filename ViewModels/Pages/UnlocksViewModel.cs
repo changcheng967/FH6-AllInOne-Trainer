@@ -55,6 +55,7 @@ public partial class UnlocksViewModel : PageViewModelBase
 
     // --- Instant Rewards ---
     [ObservableProperty] private string _grantAmountText = "100";
+    [ObservableProperty] private string _currentRewardsText = "Current counts appear after first use.";
 
     public UnlocksViewModel()
         : this(App.Services.GetRequiredService<CheatService>(),
@@ -82,10 +83,12 @@ public partial class UnlocksViewModel : PageViewModelBase
                 StatusMessage = "FH6 is not running — start the game first.";
                 SeasonAvailable = false;
                 CurrentSeasonText = "Unknown";
+                CurrentRewardsText = "Current counts appear after first use.";
             }
             else
             {
                 RefreshSeason();
+                RefreshRewards();
             }
         });
     }
@@ -309,6 +312,7 @@ public partial class UnlocksViewModel : PageViewModelBase
         var v = Parse(GrantAmountText, 100);
         var ok = _cheats.GrantWheelspins(v);
         SetStatus(ok, ok ? $"Granted {v} wheelspins." : _cheats.LastError);
+        RefreshRewards();
     }
 
     [RelayCommand]
@@ -317,5 +321,14 @@ public partial class UnlocksViewModel : PageViewModelBase
         var v = Parse(GrantAmountText, 100);
         var ok = _cheats.GrantSuperWheelspins(v);
         SetStatus(ok, ok ? $"Granted {v} super wheelspins." : _cheats.LastError);
+        RefreshRewards();
+    }
+
+    private void RefreshRewards()
+    {
+        var r = _cheats.GetCurrentRewards();
+        CurrentRewardsText = r is null
+            ? "Current counts appear after first use."
+            : $"Current: {r.Value.Wheelspins} wheelspins · {r.Value.SuperWheelspins} super";
     }
 }
