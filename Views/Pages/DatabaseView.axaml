@@ -133,6 +133,12 @@
             <Border Classes="card">
                 <StackPanel Spacing="8">
                     <TextBlock Text="PHYSICS &amp; PERFORMANCE" Classes="section-header" />
+                    <Border Background="#22FFB347" BorderBrush="{DynamicResource StatusWarn}"
+                            BorderThickness="1" CornerRadius="6" Padding="8,5" Margin="0,0,0,4">
+                        <TextBlock FontSize="10" TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextPrimary}"
+                                   Text="These change car stats. If the game saves while they are active, the values get baked into your saved car tunes (every car feels maxed out and wrong). Press the lock toggle OFF (Restore) before you switch cars or quit the game." />
+                    </Border>
 
                     <Grid ColumnDefinitions="160,*" ColumnSpacing="8">
                         <TextBlock Grid.Column="0" Text="Drift Score 10x" VerticalAlignment="Center" FontSize="12" />
