@@ -48,6 +48,10 @@ public partial class DatabaseViewModel : PageViewModelBase
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             CanToggle = _game.IsAttached;
+            // A game restart silently stops all SQL locks — resync the toggles.
+            IsFreeCarsLockOn     = _cheats.IsSqlLockActive(SqlFeature.FreeCarPrices);
+            IsAutoshowLockOn     = _cheats.IsSqlLockActive(SqlFeature.AutoshowUnlock);
+            IsInstallFlagsLockOn = _cheats.IsSqlLockActive(SqlFeature.InstallFlags);
             if (!CanToggle)
                 StatusMessage = "FH6 is not running — start the game first.";
         });

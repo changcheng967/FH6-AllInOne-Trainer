@@ -95,7 +95,17 @@ public sealed class CheatService : IDisposable
             _log.Error("Attach failed — OpenProcess returned null. Run as admin?");
             return false;
         }
-        if (previousPid != _game.Pid) _active.Clear();
+        if (previousPid != _game.Pid)
+        {
+            // New game process: every cached pointer belongs to the old address space.
+            // The game-lost cleanup can be missed when the game dies and relaunches
+            // inside one 2s poll, so re-attach must drop all per-process state here —
+            // stale SqlExecutor candidate/locks spawned crashing remote threads that
+            // the game surfaced as crash-dialog spam (#196).
+            _active.Clear();
+            _sql.Reset();
+            _reward.Reset();
+        }
         _lastAttachedPid = _game.Pid!.Value;
         _log.Info($"Attached OK — engine ready");
 

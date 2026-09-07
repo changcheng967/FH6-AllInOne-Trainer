@@ -27,6 +27,9 @@ internal sealed class RewardCaller
 
     public RewardCaller(RuntimeHookEngine engine) => _engine = engine;
 
+    /// <summary>Drop the cached wallet — it belongs to the previous game process.</summary>
+    public void Reset() => _cachedWallet = 0;
+
     public bool SetReward(int type, int value, out string? error)
     {
         error = null;
