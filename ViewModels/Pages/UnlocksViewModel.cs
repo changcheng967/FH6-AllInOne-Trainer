@@ -48,6 +48,10 @@ public partial class UnlocksViewModel : PageViewModelBase
     [ObservableProperty] private bool _isNoSkillBreakOn;
     [ObservableProperty] private bool _isFreezeAIOn;
 
+    // --- Time of Day ---
+    [ObservableProperty] private bool _isTimeOfDayOn;
+    [ObservableProperty] private string _timeOfDayText = "12.0";
+
     // --- Season ---
     [ObservableProperty] private int _selectedSeason;
     [ObservableProperty] private string _currentSeasonText = "Unknown";
@@ -275,6 +279,17 @@ public partial class UnlocksViewModel : PageViewModelBase
         Toggle(RuntimeProfileFeature.FreezeAI, on, 0, "Freeze AI");
         IsFreezeAIOn = _cheats.IsActive(RuntimeProfileFeature.FreezeAI);
     }
+
+    // ===== Time of Day =====
+    [RelayCommand] private void ToggleTimeOfDay()
+    {
+        var on = !_cheats.IsActive(RuntimeProfileFeature.TimeOfDay);
+        Toggle(RuntimeProfileFeature.TimeOfDay, on, ParseFloatAsIntBits(TimeOfDayText, 12f), "Time of Day");
+        IsTimeOfDayOn = _cheats.IsActive(RuntimeProfileFeature.TimeOfDay);
+    }
+    [RelayCommand] private void ApplyTimeOfDay()
+        => ApplyValue(RuntimeProfileFeature.TimeOfDay, ParseFloatAsIntBits(TimeOfDayText, 12f), "Time of Day");
+    [RelayCommand] private void SetTimeOfDay(string? a) { if (a is not null) { TimeOfDayText = a; if (IsTimeOfDayOn) ApplyTimeOfDay(); } }
 
     // ===== Season =====
     [RelayCommand]

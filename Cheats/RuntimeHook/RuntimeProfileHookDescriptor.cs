@@ -326,24 +326,28 @@ internal static class ProfileFeatureCatalog
 
         // Time of Day: override time float at rbx+8
         // Original: F2 0F 11 43 08  (movsd [rbx+8],xmm0)
+        // Time of Day: hold the in-game clock hour (0-24 float).
+        // The clock function accumulates the hour and wraps it modulo 24
+        // (mulss/comiss/jbe + addss -24/ja loop), then stores it at [rbx+0x64].
+        // Signature anchors on that wraparound sequence — verified unique on
+        // v379/v382/v403. The cave replaces xmm6 with the held hour before the store.
         RuntimeProfileFeature.TimeOfDay => new()
         {
             Key = "TimeOfDay", Name = "Time of Day",
-            BrokenNote = "Pending field validation — never installable before v8.1.2 (missing hook key)",
-            Signature = "44 0F ? ? ? ? F2 0F ? ? ? 48 83 C4",
-            MatchOffset = 6, HookSize = 5,
-            ExpectedOriginal = [242, 15, 17, 67, 8],
-            ToggleOffset = 27, ValueOffset = 28,
+            Signature = "F3 0F 59 F7 0F 2F F0 76 ? F3 0F 10 0D ? ? ? ? F3 0F 58 F1 0F 2F F0 77 ? 0F 28 7C 24 ? F3 0F 11 73 64",
+            MatchOffset = 31, HookSize = 5,
+            ExpectedOriginal = [0xF3, 0x0F, 0x11, 0x73, 0x64],
+            ToggleOffset = 7, ValueOffset = 22,
             Asm =
             [
-                // cmp byte [rip+20], 1 → toggle at Asm+5=27
-                128, 61, 20, 0, 0, 0, 1,
-                // jne +8 → skip movsd to original
-                117, 8,
-                // movsd xmm0,[rip+11] → value at Asm+6=28
-                242, 15, 16, 5, 11, 0, 0, 0,
-                // movsd [rbx+8],xmm0 (original)
-                242, 15, 17, 67, 8,
+                // cmp byte [rip+0],1 → toggle at Asm+7
+                0x80, 0x3D, 0x00, 0x00, 0x00, 0x00, 0x01,
+                // jne +8 → skip the hour load, fall through to the original store
+                0x75, 0x08,
+                // movss xmm6,[rip+5] → hour float at Asm+22
+                0xF3, 0x0F, 0x10, 0x35, 0x05, 0x00, 0x00, 0x00,
+                // movss [rbx+0x64],xmm6 (original)
+                0xF3, 0x0F, 0x11, 0x73, 0x64,
             ],
             OriginalRegions = [(17, 0, 5)],
         },
