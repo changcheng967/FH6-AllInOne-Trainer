@@ -952,7 +952,14 @@ public sealed class RuntimeHookEngine : IDisposable
     {
         if (_seasonHookInstalled) return;
 
-        // 1. Find "SeasonSettings Loaded" string in the module
+        // Anchor: the log call that references "SeasonSettings Loaded". The site is
+        // found with a 24-byte structured signature around the LEA (telemetry check,
+        // test al,al / jne, LEA rdx,[rip+string], mov rcx,rdi, call logger) instead
+        // of a bare 7-byte LEA byte-scan — a bare scan can match bytes in the middle
+        // of an unrelated hot instruction on a drifted build, and patching those
+        // kills the game within a second (#197, build 430.771). The wildcarded LEA
+        // displacement must still resolve to the string, so the anchor is verified
+        // structurally AND semantically.
         var needle = System.Text.Encoding.ASCII.GetBytes("SeasonSettings Loaded");
         int stringOff = -1;
         for (int i = 0; i < moduleBytes.Length - needle.Length; i++)
@@ -966,34 +973,28 @@ public sealed class RuntimeHookEngine : IDisposable
         }
         if (stringOff < 0) { L("Season: string not found"); return; }
 
-        // 2. Find LEA RDX,[rip+disp] pointing to this string. Must be a UNIQUE match:
-        // the byte scan is not instruction-aligned, so on a build we have not verified
-        // a second (or mid-instruction) match means the site is ambiguous and we refuse
-        // to patch rather than corrupt unrelated code (#184 Store-build crash).
-        // LEA RDX = 48 8D 15 XX XX XX XX
+        const string Sig = "E8 ? ? ? ? 84 C0 75 ? 48 8D 15 ? ? ? ? 48 8B CF E8 ? ? ? ?";
+        var pattern = Pattern.Parse(Sig);
         ulong hookRVA = 0;
-        int leaMatches = 0;
-        for (uint i = 0x1000; i < moduleBytes.Length - 7; i++)
+        int verified = 0, rawMatches = 0;
+        foreach (var off in Pattern.FindAll(moduleBytes, pattern, 16))
         {
-            if (moduleBytes[i] == 0x48 && moduleBytes[i + 1] == 0x8D && moduleBytes[i + 2] == 0x15)
+            rawMatches++;
+            var disp = BitConverter.ToInt32(moduleBytes, off + 12);
+            if (off + 16 + disp == stringOff)
             {
-                int disp = BitConverter.ToInt32(moduleBytes, (int)i + 3);
-                long target = (long)i + 7 + disp;
-                if (target == stringOff)
-                {
-                    hookRVA = i;
-                    leaMatches++;
-                }
+                verified++;
+                hookRVA = (ulong)(off + 9);
             }
         }
-        if (leaMatches != 1)
+        if (verified != 1)
         {
-            L($"Season: refusing to hook — expected 1 LEA reference to the string, found {leaMatches}");
+            L($"Season: refusing to hook — {verified} verified signature matches (raw {rawMatches}). Build not recognized.");
             return;
         }
 
         var hookAddr = _mainBase + hookRVA;
-        L($"Season: hook target at 0x{hookAddr:X}");
+        L($"Season: hook target at 0x{hookAddr:X} (structured signature, string-verified)");
 
         // 3. Allocate code cave (64 bytes: code + captured pointer storage)
         const int caveSize = 64;
