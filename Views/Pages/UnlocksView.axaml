@@ -273,6 +273,36 @@
                 </StackPanel>
             </Border>
 
+            <!-- Weather card -->
+            <Border Classes="card">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="WEATHER (EXPERIMENTAL)" Classes="section-header" />
+                    <TextBlock Classes="hint" TextWrapping="Wrap"
+                               Text="Live weather intensity. Values are 0.0 (off) to 1.0 (max). Press Read to capture the current state, edit, then Apply. The game's dynamic weather may drift values back over time — press Apply again to re-force." />
+                    <TextBlock Text="{Binding CurrentWeatherText}" Classes="dim" />
+                    <Grid ColumnDefinitions="110,*,Auto" ColumnSpacing="8">
+                        <TextBlock Grid.Column="0" Text="Rain" VerticalAlignment="Center" FontSize="12" />
+                        <TextBox Grid.Column="1" Text="{Binding RainText}" Width="60" HorizontalAlignment="Left" />
+                        <Button Grid.Column="2" Classes="ghost-sm" Content="Read current" Padding="10,4"
+                                Command="{Binding ReadWeatherCommand}" IsEnabled="{Binding CanToggle}" />
+                    </Grid>
+                    <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+                        <TextBlock Grid.Column="0" Text="Wetness" VerticalAlignment="Center" FontSize="12" />
+                        <TextBox Grid.Column="1" Text="{Binding WetnessText}" Width="60" HorizontalAlignment="Left" />
+                    </Grid>
+                    <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+                        <TextBlock Grid.Column="0" Text="Atmosphere" VerticalAlignment="Center" FontSize="12" />
+                        <TextBox Grid.Column="1" Text="{Binding AtmosphereText}" Width="60" HorizontalAlignment="Left" />
+                    </Grid>
+                    <Grid ColumnDefinitions="110,*" ColumnSpacing="8">
+                        <TextBlock Grid.Column="0" Text="Wind" VerticalAlignment="Center" FontSize="12" />
+                        <TextBox Grid.Column="1" Text="{Binding WindText}" Width="60" HorizontalAlignment="Left" />
+                    </Grid>
+                    <Button Classes="primary" Content="Apply Weather" Padding="14,6" HorizontalAlignment="Left"
+                            Command="{Binding ApplyWeatherCommand}" IsEnabled="{Binding CanToggle}" />
+                </StackPanel>
+            </Border>
+
             <!-- Log card -->
             <Border Classes="card">
                 <StackPanel Spacing="6">

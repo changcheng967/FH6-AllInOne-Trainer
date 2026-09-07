@@ -4,6 +4,7 @@ using System.Linq;
 using FH6Mod.Cheats.RuntimeHook;
 using FH6Mod.Cheats.Season;
 using FH6Mod.Cheats.Sql;
+using FH6Mod.Cheats.Weather;
 
 namespace FH6Mod.Services;
 
@@ -14,6 +15,7 @@ public sealed class CheatService : IDisposable
     private readonly RuntimeHookEngine _engine = new();
     private readonly SqlExecutor _sql;
     private readonly SeasonChanger _season;
+    private readonly WeatherChanger _weather;
     private readonly RewardCaller _reward;
     private readonly HashSet<RuntimeProfileFeature> _active = new();
     private int _lastAttachedPid;
@@ -31,6 +33,7 @@ public sealed class CheatService : IDisposable
         _log = log;
         _sql = new SqlExecutor(_engine);
         _season = new SeasonChanger(_engine);
+        _weather = new WeatherChanger(_engine);
         _reward = new RewardCaller(_engine);
         _engine.SetLogCallback(msg => _log.Info(msg));
         _game.StatusChanged += OnGameStatusChanged;
@@ -50,6 +53,7 @@ public sealed class CheatService : IDisposable
             _active.Clear();
             _sql.Reset();
             _season.Reset();
+            _weather.Reset();
             try { _engine.Detach(); }
             catch (Exception ex) { LastError = $"Detach on game-exit failed: {ex.Message}"; _log.Error($"Detach failed: {ex.Message}"); }
         }
@@ -237,6 +241,44 @@ public sealed class CheatService : IDisposable
             return false;
         }
 
+        LastError = null;
+        return true;
+    }
+
+    // ===== Weather (live intensity control) =====
+
+    /// <summary>
+    /// Installs the capture hook if needed and reads the current intensities.
+    /// The entity is captured on the game's next frame — reading right after the
+    /// first install may return null; the UI retries.
+    /// </summary>
+    public WeatherChanger.WeatherState? ReadWeather()
+    {
+        if (!EnsureAttached()) return null;
+        if (!_weather.IsResolved && !_engine.EnsureWeatherHook(out var hookErr))
+        {
+            _log.Error($"Weather hook: {hookErr}");
+            return null;
+        }
+        return _weather.ReadState();
+    }
+
+    public bool SetWeather(float rain, float wetness, float atmosphere, float wind, out string? error)
+    {
+        error = null;
+        if (!EnsureAttached()) { error = "Not attached."; return false; }
+        if (!_weather.IsResolved && !_engine.EnsureWeatherHook(out var hookErr))
+        {
+            error = $"Weather hook: {hookErr}";
+            _log.Error(error);
+            return false;
+        }
+        if (!_weather.SetState(rain, wetness, atmosphere, wind, out var setErr))
+        {
+            error = setErr;
+            _log.Error(error);
+            return false;
+        }
         LastError = null;
         return true;
     }

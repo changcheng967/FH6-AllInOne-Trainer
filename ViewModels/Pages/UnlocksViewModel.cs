@@ -53,6 +53,13 @@ public partial class UnlocksViewModel : PageViewModelBase
     [ObservableProperty] private string _currentSeasonText = "Unknown";
     [ObservableProperty] private bool _seasonAvailable;
 
+    // --- Weather ---
+    [ObservableProperty] private string _currentWeatherText = "Press Read to capture.";
+    [ObservableProperty] private string _rainText = "0.00";
+    [ObservableProperty] private string _wetnessText = "0.00";
+    [ObservableProperty] private string _atmosphereText = "0.00";
+    [ObservableProperty] private string _windText = "0.00";
+
     // --- Instant Rewards ---
     [ObservableProperty] private string _grantAmountText = "100";
     [ObservableProperty] private string _currentRewardsText = "Current counts appear after first use.";
@@ -303,6 +310,40 @@ public partial class UnlocksViewModel : PageViewModelBase
     {
         if (!_game.IsAttached) { CurrentSeasonText = "Not loaded"; SeasonAvailable = false; return; }
         RefreshSeason();
+    }
+
+    // ===== Weather =====
+    private static float ParseF(string s, float fallback)
+        => float.TryParse(s, NumberStyles.Float, CultureInfo.InvariantCulture, out var f) ? f : fallback;
+
+    [RelayCommand]
+    private void ReadWeather()
+    {
+        if (!CanToggle) { SetStatus(false, "FH6 is not running."); return; }
+        var s = _cheats.ReadWeather();
+        if (s is null)
+        {
+            CurrentWeatherText = "Not captured yet — the game must render one frame. Press Read again.";
+            SetStatus(false, "Weather entity not captured yet.");
+            return;
+        }
+        CurrentWeatherText = $"Rain {s.Rain:0.00} · Wetness {s.Wetness:0.00} · Atmosphere {s.Atmosphere:0.00} · Wind {s.Wind:0.00}";
+        RainText = s.Rain.ToString("0.00", CultureInfo.InvariantCulture);
+        WetnessText = s.Wetness.ToString("0.00", CultureInfo.InvariantCulture);
+        AtmosphereText = s.Atmosphere.ToString("0.00", CultureInfo.InvariantCulture);
+        WindText = s.Wind.ToString("0.00", CultureInfo.InvariantCulture);
+        SetStatus(true, "Weather state read.");
+    }
+
+    [RelayCommand]
+    private void ApplyWeather()
+    {
+        if (!CanToggle) { SetStatus(false, "FH6 is not running."); return; }
+        var ok = _cheats.SetWeather(
+            ParseF(RainText, 0f), ParseF(WetnessText, 0f),
+            ParseF(AtmosphereText, 0f), ParseF(WindText, 0f), out var err);
+        SetStatus(ok, ok ? "Weather applied." : err);
+        if (ok) ReadWeather();
     }
 
     // ===== Instant reward grants (call the game's grant function — no scanning) =====

@@ -22,6 +22,11 @@ public sealed class RuntimeHookEngine : IDisposable
     private ulong _seasonEntityStorageAddr;
     private ulong _seasonEntityStorageAltAddr;
     private bool _seasonHookInstalled;
+
+    // Weather entity capture hook (the game calls GetRainIntensity every frame,
+    // so the entity pointer is captured as soon as the hook is installed)
+    private ulong _weatherEntityStorageAddr;
+    private bool _weatherHookInstalled;
     private readonly Dictionary<string, ulong> _preResolvedTargets = new(StringComparer.OrdinalIgnoreCase);
     private bool _preResolved;
 
@@ -197,6 +202,109 @@ public sealed class RuntimeHookEngine : IDisposable
     }
     public bool   IsAddressHooked(ulong addr) => _hookedAddresses.Contains(addr);
 
+    /// <summary>
+    /// Returns the captured weather entity pointer (RCX at GetRainIntensity), or null.
+    /// </summary>
+    public ulong? GetCapturedWeatherEntity()
+    {
+        if (_weatherEntityStorageAddr == 0) return null;
+        var ptr = ReadUInt64(_weatherEntityStorageAddr);
+        return ptr != 0 ? ptr : null;
+    }
+
+    /// <summary>
+    /// Installs the weather entity capture hook. Strictly opt-in (like the season
+    /// hook). The 25-byte signature (wetness getter + ret + padding + rain getter +
+    /// ret) is unique in every analyzed build; the hook lands on the rain getter.
+    /// </summary>
+    public bool EnsureWeatherHook(out string? error)
+    {
+        error = null;
+        if (_weatherHookInstalled) return true;
+        if (!IsAttached) { error = "Not attached."; return false; }
+        try
+        {
+            var bytes = ReadBytes(_mainBase, _mainSize);
+            if (bytes.Length == 0) { error = "Could not read main module."; return false; }
+            InstallWeatherHook(bytes);
+            if (!_weatherHookInstalled) { error = "Weather hook site not found in this build."; return false; }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            error = $"Weather hook install failed: {ex.Message}";
+            return false;
+        }
+    }
+
+    private void InstallWeatherHook(byte[] moduleBytes)
+    {
+        if (_weatherHookInstalled) return;
+
+        // F3 0F 10 81 70 01 00 00 C3 CC*7 F3 0F 10 81 6C 01 00 00 C3
+        // (GetEnvironmentWetness fn + ret + padding + GetRainIntensity fn + ret)
+        var sig = new byte[]
+        {
+            0xF3, 0x0F, 0x10, 0x81, 0x70, 0x01, 0x00, 0x00, 0xC3,
+            0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC,
+            0xF3, 0x0F, 0x10, 0x81, 0x6C, 0x01, 0x00, 0x00, 0xC3,
+        };
+        int match = -1, count = 0;
+        for (int i = 0x1000; i + sig.Length < moduleBytes.Length; i++)
+        {
+            bool ok = true;
+            for (int j = 0; j < sig.Length; j++)
+                if (moduleBytes[i + j] != sig[j]) { ok = false; break; }
+            if (ok) { count++; if (match < 0) match = i; }
+        }
+        if (count != 1)
+        {
+            L($"Weather: refusing to hook — expected 1 signature match, found {count}");
+            return;
+        }
+
+        var hookAddr = _mainBase + (ulong)match + 0x10; // rain getter: movss xmm0,[rcx+0x16C]
+        L($"Weather: hook target at 0x{hookAddr:X}");
+
+        // Cave: save RCX, re-execute the original movss, jump back to the ret.
+        // +0x00: MOV [rip+0x13],RCX   (7B; storage at cave+0x14)
+        // +0x07: movss xmm0,[rcx+0x16C] (8B, original)
+        // +0x0F: JMP back to hookAddr+8 (5B, lands on the ret)
+        const int caveSize = 0x20;
+        const int storageOffset = 0x14;
+        var caveAddr = AllocateNear(hookAddr, caveSize);
+        var cave = new byte[caveSize];
+
+        cave[0] = 0x48; cave[1] = 0x89; cave[2] = 0x0D; // MOV [rip+disp32],RCX
+        BitConverter.GetBytes(storageOffset - 7).CopyTo(cave, 3);
+
+        cave[7] = 0xF3; cave[8] = 0x0F; cave[9] = 0x10; cave[10] = 0x81; // movss xmm0,[rcx+0x16C]
+        cave[11] = 0x6C; cave[12] = 0x01; cave[13] = 0x00; cave[14] = 0x00;
+
+        var jmpBack = BuildRelativeJump(caveAddr + 0x0F, hookAddr + 8, 5);
+        Buffer.BlockCopy(jmpBack, 0, cave, 0x0F, 5);
+
+        WriteBytes(caveAddr, cave);
+        _weatherEntityStorageAddr = caveAddr + storageOffset;
+
+        var hookPatch = BuildRelativeJump(hookAddr, caveAddr, 8);
+        var original = ReadBytes(hookAddr, 8);
+        WriteProtectedBytes(hookAddr, hookPatch);
+
+        _hooks["WeatherCapture"] = new RuntimeDetour
+        {
+            Name = "WeatherCapture",
+            Address = hookAddr,
+            DetourAddress = caveAddr,
+            Size = caveSize,
+            Original = original,
+            Patch = hookPatch,
+        };
+
+        _weatherHookInstalled = true;
+        L($"Weather hook installed. cave=0x{caveAddr:X}, storage=0x{_weatherEntityStorageAddr:X}");
+    }
+
     public void   LogPublic(string msg) => L(msg);
 
     public string DiagnosticsTail(int lines = 12)
@@ -284,6 +392,8 @@ public sealed class RuntimeHookEngine : IDisposable
         _seasonCaveAddr = 0;
         _seasonEntityStorageAddr = 0;
         _seasonEntityStorageAltAddr = 0;
+        _weatherHookInstalled = false;
+        _weatherEntityStorageAddr = 0;
 
         _preResolved = false;
         _preResolvedTargets.Clear();
