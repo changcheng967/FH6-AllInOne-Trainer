@@ -52,6 +52,10 @@ public partial class UnlocksViewModel : PageViewModelBase
     [ObservableProperty] private bool _isTimeOfDayOn;
     [ObservableProperty] private string _timeOfDayText = "12.0";
 
+    // --- Mission Timer ---
+    [ObservableProperty] private bool _isMissionTimerOn;
+    [ObservableProperty] private string _missionTimerText = "0";
+
     // --- Season ---
     [ObservableProperty] private int _selectedSeason;
     [ObservableProperty] private string _currentSeasonText = "Unknown";
@@ -290,6 +294,16 @@ public partial class UnlocksViewModel : PageViewModelBase
     [RelayCommand] private void ApplyTimeOfDay()
         => ApplyValue(RuntimeProfileFeature.TimeOfDay, ParseFloatAsIntBits(TimeOfDayText, 12f), "Time of Day");
     [RelayCommand] private void SetTimeOfDay(string? a) { if (a is not null) { TimeOfDayText = a; if (IsTimeOfDayOn) ApplyTimeOfDay(); } }
+
+    // ===== Mission Timer =====
+    [RelayCommand] private void ToggleMissionTimer()
+    {
+        var on = !_cheats.IsActive(RuntimeProfileFeature.MissionTimerTick);
+        Toggle(RuntimeProfileFeature.MissionTimerTick, on, ParseFloatAsIntBits(MissionTimerText, 0f), "Mission Timer");
+        IsMissionTimerOn = _cheats.IsActive(RuntimeProfileFeature.MissionTimerTick);
+    }
+    [RelayCommand] private void ApplyMissionTimer()
+        => ApplyValue(RuntimeProfileFeature.MissionTimerTick, ParseFloatAsIntBits(MissionTimerText, 0f), "Mission Timer");
 
     // ===== Season =====
     [RelayCommand]
