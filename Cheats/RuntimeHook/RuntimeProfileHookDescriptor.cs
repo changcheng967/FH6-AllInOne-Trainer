@@ -28,6 +28,7 @@ public enum RuntimeProfileFeature
     SpeedTrapMultiplier,
     MissionTimeScale,
     FreeClothing,
+    MissionTimerTick,
 
 }
 
@@ -350,6 +351,34 @@ internal static class ProfileFeatureCatalog
                 0xF3, 0x0F, 0x11, 0x73, 0x64,
             ],
             OriginalRegions = [(17, 0, 5)],
+        },
+
+        // Mission Timer: scale the mission countdown tick.
+        // The timer object's remaining time lives at +0x88 (float); the tick function
+        // adds the frame delta to it only while the progress window (+0x48C < +0x490)
+        // is open, then checks remaining > 0 for the fail condition. The cave multiplies
+        // the delta by the user's scale before the store: 0 freezes, 0.5 slows, 2 speeds up.
+        // Signature anchors on the movss/comiss/addss/movss/comiss sequence — verified
+        // unique on v379/v382/v403.
+        RuntimeProfileFeature.MissionTimerTick => new()
+        {
+            Key = "MissionTimerTick", Name = "Mission Timer",
+            Signature = "F3 0F 10 83 8C 04 00 00 0F 2F 83 90 04 00 00 73 ? F3 0F 58 B3 88 00 00 00 F3 0F 11 B3 88 00 00 00 0F 2F BB 88 00 00 00",
+            MatchOffset = 17, HookSize = 8,
+            ExpectedOriginal = [0xF3, 0x0F, 0x58, 0xB3, 0x88, 0x00, 0x00, 0x00],
+            ToggleOffset = 7, ValueOffset = 22,
+            Asm =
+            [
+                // cmp byte [rip+0],1 → toggle at Asm+7
+                0x80, 0x3D, 0x00, 0x00, 0x00, 0x00, 0x01,
+                // jne +9 → skip the scale multiply, do the original add
+                0x75, 0x09,
+                // mulss xmm6,[rip+1] → scale float at Asm+20
+                0xF3, 0x0F, 0x59, 0x35, 0x01, 0x00, 0x00, 0x00,
+                // addss xmm6,[rbx+0x88] (original, 8 bytes)
+                0xF3, 0x0F, 0x58, 0xB3, 0x88, 0x00, 0x00, 0x00,
+            ],
+            OriginalRegions = [(17, 0, 8)],
         },
 
         // Skill Score Multiplier: imul earned skill score by multiplier

@@ -56,7 +56,7 @@ public sealed class GameProcessService : IDisposable
             if (_process is { HasExited: false })
                 return;
 
-            _process = Process.GetProcessesByName(ProcessName).FirstOrDefault();
+            _process = SelectGameProcess();
             var nowAttached = IsAttached;
             if (was != nowAttached)
             {
@@ -75,6 +75,20 @@ public sealed class GameProcessService : IDisposable
             }
         }
         catch (Exception ex) { _log.Error($"GameProcess poll error: {ex.Message}"); }
+    }
+
+    /// <summary>
+    /// The game process name differs by install channel ("ForzaHorizon6" vs
+    /// "forzahorizon6"). Try both.
+    /// </summary>
+    private static Process? SelectGameProcess()
+    {
+        foreach (var name in new[] { "ForzaHorizon6", "forzahorizon6" })
+        {
+            var found = Process.GetProcessesByName(name).FirstOrDefault();
+            if (found is not null) return found;
+        }
+        return null;
     }
 
     public List<string> DetectConflictingTrainers()
