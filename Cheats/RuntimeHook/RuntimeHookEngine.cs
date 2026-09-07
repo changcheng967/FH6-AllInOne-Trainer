@@ -192,6 +192,12 @@ public sealed class RuntimeHookEngine : IDisposable
         error = null;
         if (_seasonHookInstalled) return true;
         if (!IsAttached) { error = "Not attached."; return false; }
+        // Arm the integrity bypass first, exactly like the profile hooks do: on
+        // builds with the periodic code check, a .text patch without the bypass
+        // gets the game terminated within a second (#197 — Credits (bypass-armed)
+        // survives the same builds where Season died without it).
+        try { EnsureCrcBypass(); }
+        catch (Exception ex) { error = $"CRC bypass: {ex.Message}"; return false; }
         try
         {
             var bytes = ReadBytes(_mainBase, _mainSize);
@@ -224,6 +230,9 @@ public sealed class RuntimeHookEngine : IDisposable
         error = null;
         if (_xpHookInstalled) return true;
         if (!IsAttached) { error = "Not attached."; return false; }
+        // Same rule as season/profile hooks: no .text patch without the CRC bypass.
+        try { EnsureCrcBypass(); }
+        catch (Exception ex) { error = $"CRC bypass: {ex.Message}"; return false; }
         try
         {
             var bytes = ReadBytes(_mainBase, _mainSize);
@@ -321,6 +330,9 @@ public sealed class RuntimeHookEngine : IDisposable
         error = null;
         if (_weatherHookInstalled) return true;
         if (!IsAttached) { error = "Not attached."; return false; }
+        // Same rule as season/profile hooks: no .text patch without the CRC bypass.
+        try { EnsureCrcBypass(); }
+        catch (Exception ex) { error = $"CRC bypass: {ex.Message}"; return false; }
         try
         {
             var bytes = ReadBytes(_mainBase, _mainSize);
