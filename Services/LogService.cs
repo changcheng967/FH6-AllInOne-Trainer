@@ -9,7 +9,7 @@ public sealed class LogService : IDisposable
 {
     private readonly List<string> _entries = [];
     private const int MaxEntries = 500;
-    private readonly StreamWriter _file;
+    private readonly StreamWriter? _file;
     private readonly object _lock = new();
 
     public event Action? Changed;
@@ -18,8 +18,19 @@ public sealed class LogService : IDisposable
     {
         var dir = AppContext.BaseDirectory;
         var path = Path.Combine(dir, "trainer.log");
-        _file = new StreamWriter(path, true) { AutoFlush = true };
-        _file.WriteLine($"\n========== Trainer started {DateTime.Now:yyyy-MM-dd HH:mm:ss} ==========");
+        try
+        {
+            // Shared access: a second trainer instance or an external viewer holding
+            // the log must not crash this one at startup (#197). If the file still
+            // cannot be opened, fall back to in-memory logging — never kill the app.
+            var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+            _file = new StreamWriter(stream) { AutoFlush = true };
+            _file.WriteLine($"\n========== Trainer started {DateTime.Now:yyyy-MM-dd HH:mm:ss} ==========");
+        }
+        catch (IOException)
+        {
+            _file = null;
+        }
     }
 
     public void Info(string msg) => Add(msg);
@@ -34,7 +45,7 @@ public sealed class LogService : IDisposable
             _entries.Add(entry);
             if (_entries.Count > MaxEntries)
                 _entries.RemoveRange(0, _entries.Count - MaxEntries);
-            _file.WriteLine(entry);
+            try { _file?.WriteLine(entry); } catch { /* logging must never throw */ }
         }
         Changed?.Invoke();
     }
@@ -56,7 +67,7 @@ public sealed class LogService : IDisposable
 
     public void Dispose()
     {
-        try { _file.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] Trainer shutting down."); _file.Dispose(); }
+        try { _file?.WriteLine($"[{DateTime.Now:HH:mm:ss.fff}] Trainer shutting down."); _file?.Dispose(); }
         catch { }
     }
 }
