@@ -531,7 +531,10 @@ public sealed class RuntimeHookEngine : IDisposable
                 }
                 catch (Exception ex) { L($"Could not restore {det.Name}: {ex.Message}"); }
             }
-            if (_hooks.Count > 0) L($"Restored {_hooks.Count} runtime hook(s).");
+            if (_hooks.Count > 0)
+                L(alive
+                    ? $"Restored {_hooks.Count} runtime hook(s)."
+                    : $"Dropped {_hooks.Count} runtime hook(s) from the previous game process (nothing to restore into).");
             _hooks.Clear();
             _hookedAddresses.Clear();
         }
