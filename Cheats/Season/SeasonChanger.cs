@@ -55,21 +55,20 @@ public sealed class SeasonChanger
 
     private ulong GetEntityPtr()
     {
-        // Try the RDI slot first, then the RCX slot. A capture is only trusted when the
-        // pointer is plausible AND [ptr+0x174] holds a valid season (0-3) — a wrong
-        // register capture fails this and we refuse to write through it.
-        foreach (var captured in new[] { _engine.GetCapturedSeasonEntity(), _engine.GetCapturedSeasonEntityAlt() })
+        // The capture hook stores the entity pointer from the season getter's RCX.
+        // A capture is only trusted when the pointer is plausible AND [ptr+0x174]
+        // holds a valid season (0-3) — a wrong capture fails this and we refuse
+        // to write through it.
+        var captured = _engine.GetCapturedSeasonEntity();
+        if (captured == null || captured.Value == 0) return 0;
+        var ptr = captured.Value;
+        if (ptr < 0x10000 || ptr > 0x00007FFFFFFFFFFF) return 0;
+        try
         {
-            if (captured == null || captured.Value == 0) continue;
-            var ptr = captured.Value;
-            if (ptr < 0x10000 || ptr > 0x00007FFFFFFFFFFF) continue;
-            try
-            {
-                var s = _engine.ReadInt32Public(ptr + SeasonValueOffset);
-                if (s >= 0 && s <= 3) return ptr;
-            }
-            catch { /* unreadable capture — not the entity */ }
+            var s = _engine.ReadInt32Public(ptr + SeasonValueOffset);
+            if (s >= 0 && s <= 3) return ptr;
         }
+        catch { /* unreadable capture — not the entity */ }
         return 0;
     }
 

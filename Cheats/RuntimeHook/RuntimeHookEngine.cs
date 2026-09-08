@@ -17,19 +17,15 @@ public sealed class RuntimeHookEngine : IDisposable
     private readonly Dictionary<string, RuntimeDetour> _hooks = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<ulong> _hookedAddresses = new();
 
-    // Season entity capture hook
-    private ulong _seasonCaveAddr;
-    private ulong _seasonEntityStorageAddr;
-    private ulong _seasonEntityStorageAltAddr;
+    // Capture hooks: newer builds contain multiple copies of tiny getter
+    // functions; we hook ALL matches and use whichever captures a valid entity
+    // at runtime. This avoids the "matched dead code" problem (#197, #199).
+    private readonly List<ulong> _seasonEntityStorageAddrs = new();
     private bool _seasonHookInstalled;
-
-    // Weather entity capture hook (the game calls GetRainIntensity every frame,
-    // so the entity pointer is captured as soon as the hook is installed)
-    private ulong _weatherEntityStorageAddr;
+    private readonly List<ulong> _weatherEntityStorageAddrs = new();
     private bool _weatherHookInstalled;
 
-    // XP capture hook: AddTotalXP(owner, amount) is called on every natural XP
-    // gain; hooking its entry captures the progression owner pointer.
+    // XP capture hook: AddTotalXP(owner, amount) entry hook
     private ulong _xpOwnerStorageAddr;
     private ulong _xpAddFunctionAddr;
     private bool _xpHookInstalled;
@@ -160,25 +156,31 @@ public sealed class RuntimeHookEngine : IDisposable
     public bool   IsExecutableAddressPublic(ulong addr) => IsExecutableAddress(addr);
 
     /// <summary>
-    /// Returns the captured season entity pointer (RCX at the season getter), or null.
+    /// Returns the first captured season entity pointer from any of the hooked
+    /// getter copies that has been called by the game.
     /// </summary>
     public ulong? GetCapturedSeasonEntity()
     {
-        if (_seasonEntityStorageAddr == 0) return null;
-        var ptr = ReadUInt64(_seasonEntityStorageAddr);
-        return ptr != 0 ? ptr : null;
+        foreach (var storage in _seasonEntityStorageAddrs)
+        {
+            var ptr = ReadUInt64(storage);
+            if (ptr != 0) return ptr;
+        }
+        return null;
     }
 
     /// <summary>
-    /// Returns the season entity pointer captured from RCX at the same site — the x64
-    /// "this" register. If the RDI assumption behind the primary slot is wrong for a
-    /// given build, this slot holds the real entity pointer instead.
+    /// Returns the first captured weather entity pointer from any of the hooked
+    /// getter copies that has been called by the game.
     /// </summary>
-    public ulong? GetCapturedSeasonEntityAlt()
+    public ulong? GetCapturedWeatherEntity()
     {
-        if (_seasonEntityStorageAltAddr == 0) return null;
-        var ptr = ReadUInt64(_seasonEntityStorageAltAddr);
-        return ptr != 0 ? ptr : null;
+        foreach (var storage in _weatherEntityStorageAddrs)
+        {
+            var ptr = ReadUInt64(storage);
+            if (ptr != 0) return ptr;
+        }
+        return null;
     }
 
     /// <summary>
@@ -306,19 +308,8 @@ public sealed class RuntimeHookEngine : IDisposable
     public bool   IsAddressHooked(ulong addr) => _hookedAddresses.Contains(addr);
 
     /// <summary>
-    /// Returns the captured weather entity pointer (RCX at GetRainIntensity), or null.
-    /// </summary>
-    public ulong? GetCapturedWeatherEntity()
-    {
-        if (_weatherEntityStorageAddr == 0) return null;
-        var ptr = ReadUInt64(_weatherEntityStorageAddr);
-        return ptr != 0 ? ptr : null;
-    }
-
-    /// <summary>
     /// Installs the weather entity capture hook. Strictly opt-in (like the season
-    /// hook). The 25-byte signature (wetness getter + ret + padding + rain getter +
-    /// ret) is unique in every analyzed build; the hook lands on the rain getter.
+    /// hook). Uses multi-match on the rain getter body — all copies are hooked.
     /// </summary>
     public bool EnsureWeatherHook(out string? error)
     {
@@ -347,68 +338,64 @@ public sealed class RuntimeHookEngine : IDisposable
     {
         if (_weatherHookInstalled) return;
 
-        // F3 0F 10 81 70 01 00 00 C3 CC*7 F3 0F 10 81 6C 01 00 00 C3
-        // (GetEnvironmentWetness fn + ret + padding + GetRainIntensity fn + ret)
-        var sig = new byte[]
-        {
-            0xF3, 0x0F, 0x10, 0x81, 0x70, 0x01, 0x00, 0x00, 0xC3,
-            0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC,
-            0xF3, 0x0F, 0x10, 0x81, 0x6C, 0x01, 0x00, 0x00, 0xC3,
-        };
-        int match = -1, count = 0;
+        // The rain getter: movss xmm0,[rcx+0x16C] (8 bytes, followed by ret).
+        // Same multi-match approach as season — hook all copies.
+        var sig = new byte[] { 0xF3, 0x0F, 0x10, 0x81, 0x6C, 0x01, 0x00, 0x00, 0xC3 };
+        var matches = new List<int>();
         for (int i = 0x1000; i + sig.Length < moduleBytes.Length; i++)
         {
             bool ok = true;
             for (int j = 0; j < sig.Length; j++)
                 if (moduleBytes[i + j] != sig[j]) { ok = false; break; }
-            if (ok) { count++; if (match < 0) match = i; }
+            if (ok) matches.Add(i);
         }
-        if (count != 1)
+        if (matches.Count == 0)
         {
-            L($"Weather: refusing to hook — expected 1 signature match, found {count}");
+            L("Weather: no rain getter matches found in this build.");
             return;
         }
 
-        var hookAddr = _mainBase + (ulong)match + 0x10; // rain getter: movss xmm0,[rcx+0x16C]
-        L($"Weather: hook target at 0x{hookAddr:X}");
+        L($"Weather: found {matches.Count} rain getter cop{(matches.Count == 1 ? "y" : "ies")}, hooking all");
 
-        // Cave: save RCX, re-execute the original movss, jump back to the ret.
-        // +0x00: MOV [rip+0x13],RCX   (7B; storage at cave+0x14)
-        // +0x07: movss xmm0,[rcx+0x16C] (8B, original)
-        // +0x0F: JMP back to hookAddr+8 (5B, lands on the ret)
         const int caveSize = 0x20;
         const int storageOffset = 0x14;
-        var caveAddr = AllocateNear(hookAddr, caveSize);
-        var cave = new byte[caveSize];
-
-        cave[0] = 0x48; cave[1] = 0x89; cave[2] = 0x0D; // MOV [rip+disp32],RCX
-        BitConverter.GetBytes(storageOffset - 7).CopyTo(cave, 3);
-
-        cave[7] = 0xF3; cave[8] = 0x0F; cave[9] = 0x10; cave[10] = 0x81; // movss xmm0,[rcx+0x16C]
-        cave[11] = 0x6C; cave[12] = 0x01; cave[13] = 0x00; cave[14] = 0x00;
-
-        var jmpBack = BuildRelativeJump(caveAddr + 0x0F, hookAddr + 8, 5);
-        Buffer.BlockCopy(jmpBack, 0, cave, 0x0F, 5);
-
-        WriteBytes(caveAddr, cave);
-        _weatherEntityStorageAddr = caveAddr + storageOffset;
-
-        var hookPatch = BuildRelativeJump(hookAddr, caveAddr, 8);
-        var original = ReadBytes(hookAddr, 8);
-        WriteProtectedBytes(hookAddr, hookPatch);
-
-        _hooks["WeatherCapture"] = new RuntimeDetour
+        for (int idx = 0; idx < matches.Count && idx < 4; idx++)
         {
-            Name = "WeatherCapture",
-            Address = hookAddr,
-            DetourAddress = caveAddr,
-            Size = caveSize,
-            Original = original,
-            Patch = hookPatch,
-        };
+            var hookAddr = _mainBase + (ulong)matches[idx];
+
+            var caveAddr = AllocateNear(hookAddr, caveSize);
+            var storageAddr = caveAddr + storageOffset;
+            _weatherEntityStorageAddrs.Add(storageAddr);
+
+            var cave = new byte[caveSize];
+            cave[0] = 0x48; cave[1] = 0x89; cave[2] = 0x0D; // MOV [rip+disp32],RCX
+            BitConverter.GetBytes(storageOffset - 7).CopyTo(cave, 3);
+            // re-execute: movss xmm0,[rcx+0x16C]
+            cave[7] = 0xF3; cave[8] = 0x0F; cave[9] = 0x10; cave[10] = 0x81;
+            cave[11] = 0x6C; cave[12] = 0x01; cave[13] = 0x00; cave[14] = 0x00;
+            // ret
+            cave[15] = 0xC3;
+
+            WriteBytes(caveAddr, cave);
+
+            var hookPatch = BuildRelativeJump(hookAddr, caveAddr, 9);
+            var original = ReadBytes(hookAddr, 9);
+            WriteProtectedBytes(hookAddr, hookPatch);
+
+            _hooks[$"WeatherCapture{idx}"] = new RuntimeDetour
+            {
+                Name = $"WeatherCapture{idx}",
+                Address = hookAddr,
+                DetourAddress = caveAddr,
+                Size = caveSize,
+                Original = original,
+                Patch = hookPatch,
+            };
+
+            L($"Weather hook [{idx}] installed @ 0x{hookAddr:X}, storage=0x{storageAddr:X}");
+        }
 
         _weatherHookInstalled = true;
-        L($"Weather hook installed. cave=0x{caveAddr:X}, storage=0x{_weatherEntityStorageAddr:X}");
     }
 
     public void   LogPublic(string msg) => L(msg);
@@ -495,11 +482,9 @@ public sealed class RuntimeHookEngine : IDisposable
         // restart, or EnsureSeasonHook silently skips installation in the next
         // game process and the entity is never captured (#195).
         _seasonHookInstalled = false;
-        _seasonCaveAddr = 0;
-        _seasonEntityStorageAddr = 0;
-        _seasonEntityStorageAltAddr = 0;
+        _seasonEntityStorageAddrs.Clear();
         _weatherHookInstalled = false;
-        _weatherEntityStorageAddr = 0;
+        _weatherEntityStorageAddrs.Clear();
         _xpHookInstalled = false;
         _xpOwnerStorageAddr = 0;
         _xpAddFunctionAddr = 0;
@@ -959,70 +944,67 @@ public sealed class RuntimeHookEngine : IDisposable
     {
         if (_seasonHookInstalled) return;
 
-        // Anchor: the season getter itself — movss xmm0,[rcx+0x174]; ret.
-        // Every code path that reads the season value goes through this single
-        // 9-byte function, so the entity pointer (RCX) is captured on every read
-        // (game HUD, world state, weather — all call it frequently). This replaces
-        // the old one-shot "SeasonSettings Loaded" hook which only fired at boot
-        // and could never capture on a mid-session attach (#197).
-        var sig = new byte[] { 0xF3, 0x0F, 0x10, 0x81, 0x74, 0x01, 0x00, 0x00, 0xC3,
-                               0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC, 0xCC };
-        int match = -1, count = 0;
+        // The season getter: movss xmm0,[rcx+0x174]; ret (9 bytes).
+        // Newer builds contain multiple copies (parallel classes, compiler
+        // artifacts). Hook ALL of them — the one the game actually calls
+        // fills its storage slot; dead copies stay zero. (#197, #199)
+        var sig = new byte[] { 0xF3, 0x0F, 0x10, 0x81, 0x74, 0x01, 0x00, 0x00, 0xC3 };
+        var matches = new List<int>();
         for (int i = 0x1000; i + sig.Length < moduleBytes.Length; i++)
         {
             bool ok = true;
             for (int j = 0; j < sig.Length; j++)
                 if (moduleBytes[i + j] != sig[j]) { ok = false; break; }
-            if (ok) { count++; if (match < 0) match = i; }
+            if (ok) matches.Add(i);
         }
-        if (count != 1)
+        if (matches.Count == 0)
         {
-            L($"Season: refusing to hook — expected 1 getter match, found {count}");
+            L("Season: no getter matches found in this build.");
             return;
         }
 
-        var hookAddr = _mainBase + (ulong)match;
-        L($"Season: hook target at 0x{hookAddr:X} (season getter, every-read capture)");
+        L($"Season: found {matches.Count} getter cop{(matches.Count == 1 ? "y" : "ies")}, hooking all");
 
-        // Cave: save RCX (the season entity), re-execute the movss, ret.
-        // +0x00: MOV [rip+disp],RCX  (7B; storage at cave+0x10)
-        // +0x07: movss xmm0,[rcx+0x174] (8B, original)
-        // +0x0F: ret (1B, original)
         const int caveSize = 0x20;
         const int storageOffset = 0x10;
-        var caveAddr = AllocateNear(hookAddr, caveSize);
-        _seasonCaveAddr = caveAddr;
-        _seasonEntityStorageAddr = caveAddr + storageOffset;
-
-        var cave = new byte[caveSize];
-        cave[0] = 0x48; cave[1] = 0x89; cave[2] = 0x0D; // MOV [rip+disp32],RCX
-        BitConverter.GetBytes(storageOffset - 7).CopyTo(cave, 3);
-
-        // re-execute original: movss xmm0,[rcx+0x174]
-        cave[7] = 0xF3; cave[8] = 0x0F; cave[9] = 0x10; cave[10] = 0x81;
-        cave[11] = 0x74; cave[12] = 0x01; cave[13] = 0x00; cave[14] = 0x00;
-
-        // ret
-        cave[15] = 0xC3;
-
-        WriteBytes(caveAddr, cave);
-
-        var hookPatch = BuildRelativeJump(hookAddr, caveAddr, 9);
-        var original = ReadBytes(hookAddr, 9);
-        WriteProtectedBytes(hookAddr, hookPatch);
-
-        _hooks["SeasonCapture"] = new RuntimeDetour
+        for (int idx = 0; idx < matches.Count && idx < 4; idx++)
         {
-            Name = "SeasonCapture",
-            Address = hookAddr,
-            DetourAddress = caveAddr,
-            Size = caveSize,
-            Original = original,
-            Patch = hookPatch,
-        };
+            var hookAddr = _mainBase + (ulong)matches[idx];
+
+            // Cave: save RCX (the season entity), re-execute the movss, ret.
+            var caveAddr = AllocateNear(hookAddr, caveSize);
+            var storageAddr = caveAddr + storageOffset;
+            _seasonEntityStorageAddrs.Add(storageAddr);
+
+            var cave = new byte[caveSize];
+            cave[0] = 0x48; cave[1] = 0x89; cave[2] = 0x0D; // MOV [rip+disp32],RCX
+            BitConverter.GetBytes(storageOffset - 7).CopyTo(cave, 3);
+            // re-execute: movss xmm0,[rcx+0x174]
+            cave[7] = 0xF3; cave[8] = 0x0F; cave[9] = 0x10; cave[10] = 0x81;
+            cave[11] = 0x74; cave[12] = 0x01; cave[13] = 0x00; cave[14] = 0x00;
+            // ret
+            cave[15] = 0xC3;
+
+            WriteBytes(caveAddr, cave);
+
+            var hookPatch = BuildRelativeJump(hookAddr, caveAddr, 9);
+            var original = ReadBytes(hookAddr, 9);
+            WriteProtectedBytes(hookAddr, hookPatch);
+
+            _hooks[$"SeasonCapture{idx}"] = new RuntimeDetour
+            {
+                Name = $"SeasonCapture{idx}",
+                Address = hookAddr,
+                DetourAddress = caveAddr,
+                Size = caveSize,
+                Original = original,
+                Patch = hookPatch,
+            };
+
+            L($"Season hook [{idx}] installed @ 0x{hookAddr:X}, storage=0x{storageAddr:X}");
+        }
 
         _seasonHookInstalled = true;
-        L($"Season hook installed. cave=0x{caveAddr:X}, storage=0x{_seasonEntityStorageAddr:X}");
     }
 
     // ===== low-level read/write/alloc =====
